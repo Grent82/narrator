@@ -1,10 +1,13 @@
 import os
+import time
 
 from fastapi import Depends, FastAPI
 from ollama import Client as OllamaClient
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from ..shared.logging_config import configure_logging
 
 app = FastAPI()
 
@@ -14,6 +17,8 @@ BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "17000"))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b")
+BACKEND_LOG_FILE = os.getenv("BACKEND_LOG_FILE", "logs/backend.log")
+logger = configure_logging(BACKEND_LOG_FILE, "backend")
 
 connect_args = {"check_same_thread": False} if DB_URL.startswith("sqlite") else {}
 engine = create_engine(DB_URL, connect_args=connect_args, pool_pre_ping=True)
@@ -36,11 +41,15 @@ class TurnResponse(BaseModel):
 
 
 def process_trigger(trigger: str) -> str:
+    start = time.monotonic()
     try:
+        logger.debug("ollama_request model=%s prompt_len=%d", OLLAMA_MODEL, len(trigger))
         response = ollama_client.generate(model=OLLAMA_MODEL, prompt=trigger)
         result = response.get("response", "").strip()
+        logger.debug("ollama_response chars=%d duration_ms=%d", len(result), int((time.monotonic() - start) * 1000))
         return result
     except Exception as exc:
+        logger.exception("ollama_error")
         return f"Ollama error: {exc}"
 
 
@@ -58,7 +67,9 @@ def healthcheck():
 @app.post("/turn", response_model=TurnResponse)
 def handle_turn(payload: TurnRequest, db=Depends(get_db)):
     _ = db
+    logger.debug("turn_received trigger_len=%d", len(payload.trigger))
     result = process_trigger(payload.trigger)
+    logger.debug("turn_completed result_len=%d", len(result))
     return TurnResponse(result=result)
 
 if __name__ == "__main__":
