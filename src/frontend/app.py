@@ -3,7 +3,7 @@ import os
 from httpx import AsyncClient, HTTPError
 from nicegui import ui 
 
-from ..shared.logging_config import configure_logging
+from src.shared.logging_config import configure_logging
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:17000")
 FRONTEND_HOST = os.getenv("FRONTEND_HOST", "0.0.0.0")

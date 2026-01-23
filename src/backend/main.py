@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from ..shared.logging_config import configure_logging
+from src.shared.logging_config import configure_logging
 
 app = FastAPI()
 

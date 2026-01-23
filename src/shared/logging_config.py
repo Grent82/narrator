@@ -14,4 +14,7 @@ def configure_logging(log_file: str, logger_name: str) -> logging.Logger:
             logging.StreamHandler(),
         ],
     )
+    # Reduce noise from file watcher used by NiceGUI/uvicorn reload.
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
+    logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
     return logging.getLogger(logger_name)
