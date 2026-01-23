@@ -1,0 +1,59 @@
+version: '3.8'
+services:
+  backend:
+    build: .
+    ports:
+      - "17000:17000"
+    volumes:
+      - .:/app
+    environment:
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=17000
+      - REDIS_URL=redis://redis:6379
+      - DB_URL=postgresql://user:pass@db:5432/adventure
+    depends_on:
+      - redis
+      - db
+
+  frontend:
+    build: .
+    command: python src/frontend/app.py
+    ports:
+      - "17080:17080"
+    volumes:
+      - .:/app
+    environment:
+      - FRONTEND_HOST=0.0.0.0
+      - FRONTEND_PORT=17080
+      - BACKEND_URL=http://backend:17000
+    depends_on:
+      - backend
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis-data:/data
+
+  db:
+    image: postgres:alpine
+    environment:
+      - POSTGRES_USER=narrator
+      - POSTGRES_PASSWORD=narrator
+      - POSTGRES_DB=narrator
+    ports:
+      - "15432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "18080:8080"
+    depends_on:
+      - db
+
+volumes:
+  redis-data:
+  db-data:
