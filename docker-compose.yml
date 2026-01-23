@@ -2,6 +2,8 @@ version: '3.8'
 services:
   backend:
     build: .
+    env_file:
+      - .env
     ports:
       - "17000:17000"
     volumes:
@@ -18,6 +20,8 @@ services:
   frontend:
     build: .
     command: python src/frontend/app.py
+    env_file:
+      - .env
     ports:
       - "17080:17080"
     volumes:
