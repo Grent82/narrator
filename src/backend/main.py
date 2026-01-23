@@ -2,6 +2,7 @@ import os
 import time
 
 from fastapi import Depends, FastAPI
+from fastapi.responses import StreamingResponse
 from ollama import Client as OllamaClient
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine
@@ -53,6 +54,23 @@ def process_trigger(trigger: str) -> str:
         return f"Ollama error: {exc}"
 
 
+def stream_trigger(trigger: str):
+    start = time.monotonic()
+    try:
+        logger.debug("ollama_stream_request model=%s prompt_len=%d", OLLAMA_MODEL, len(trigger))
+        for part in ollama_client.generate(model=OLLAMA_MODEL, prompt=trigger, stream=True):
+            token = part.get("response", "")
+            if token:
+                yield token
+        logger.debug(
+            "ollama_stream_completed duration_ms=%d",
+            int((time.monotonic() - start) * 1000),
+        )
+    except Exception as exc:
+        logger.exception("ollama_stream_error")
+        yield f"\n[Ollama error: {exc}]"
+
+
 @app.get("/health")
 def healthcheck():
     return {
@@ -71,6 +89,13 @@ def handle_turn(payload: TurnRequest, db=Depends(get_db)):
     result = process_trigger(payload.trigger)
     logger.debug("turn_completed result_len=%d", len(result))
     return TurnResponse(result=result)
+
+
+@app.post("/turn/stream")
+def handle_turn_stream(payload: TurnRequest, db=Depends(get_db)):
+    _ = db
+    logger.debug("turn_stream_received trigger_len=%d", len(payload.trigger))
+    return StreamingResponse(stream_trigger(payload.trigger), media_type="text/plain")
 
 if __name__ == "__main__":
     import uvicorn

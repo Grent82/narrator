@@ -13,6 +13,7 @@ services:
       - BACKEND_PORT=17000
       - REDIS_URL=redis://redis:6379
       - DB_URL=postgresql://narrator:narrator@db:5432/narrator
+      - PYTHONPATH=/app
     depends_on:
       - redis
       - db
@@ -30,6 +31,7 @@ services:
       - FRONTEND_HOST=0.0.0.0
       - FRONTEND_PORT=17080
       - BACKEND_URL=http://backend:17000
+      - PYTHONPATH=/app
     depends_on:
       - backend
 

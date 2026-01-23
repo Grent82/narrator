@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from httpx import AsyncClient, HTTPError
@@ -20,19 +21,30 @@ async def submit_command(_=None) -> None:
     with story_log:
         ui.label(f"> {cmd}").classes("text-gray-500")
     logger.info("submit_command len=%d", len(cmd))
+    response_label = None
+    with story_log:
+        response_label = ui.label("").classes("whitespace-pre-wrap")
     try:
-        async with AsyncClient(timeout=10.0) as client:
-            response = await client.post(f"{BACKEND_URL}/turn", json={"trigger": cmd})
-            response.raise_for_status()
-            result = response.json().get("result", "")
+        async with AsyncClient(timeout=None) as client:
+            async with client.stream(
+                "POST",
+                f"{BACKEND_URL}/turn/stream",
+                json={"trigger": cmd},
+            ) as response:
+                response.raise_for_status()
+                buffer = ""
+                async for chunk in response.aiter_text():
+                    if not chunk:
+                        continue
+                    buffer += chunk
+                    response_label.set_text(buffer)
+                    await asyncio.sleep(0)
     except HTTPError as exc:
         logger.exception("backend_http_error")
-        result = f"Backend error: {exc}"
+        response_label.set_text(f"Backend error: {exc}")
     except Exception as exc:  # NiceGUI should not crash on transient errors.
         logger.exception("backend_unexpected_error")
-        result = f"Unexpected error: {exc}"
-    with story_log:
-        ui.label(result)
+        response_label.set_text(f"Unexpected error: {exc}")
 
 story_log = ui.column().classes("w-full max-w-3xl")
 input_row = ui.row().classes("w-full max-w-3xl")
