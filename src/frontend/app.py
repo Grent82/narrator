@@ -18,6 +18,12 @@ async def submit_command(_=None) -> None:
     if not cmd:
         return
     input_field.value = ""
+    input_field.disable()
+    send_button.disable()
+    if hasattr(busy_row, "set_visibility"):
+        busy_row.set_visibility(True)
+    else:
+        busy_row.visible = True
     with story_log:
         ui.label(f"> {cmd}").classes("text-gray-500")
     logger.info("submit_command len=%d", len(cmd))
@@ -45,12 +51,28 @@ async def submit_command(_=None) -> None:
     except Exception as exc:  # NiceGUI should not crash on transient errors.
         logger.exception("backend_unexpected_error")
         response_label.set_text(f"Unexpected error: {exc}")
+    finally:
+        if hasattr(busy_row, "set_visibility"):
+            busy_row.set_visibility(False)
+        else:
+            busy_row.visible = False
+        input_field.enable()
+        send_button.enable()
 
 story_log = ui.column().classes("w-full max-w-3xl")
-input_row = ui.row().classes("w-full max-w-3xl")
+busy_row = ui.row().classes("w-full max-w-3xl items-center gap-2")
+with busy_row:
+    ui.spinner(size="md")
+    ui.label("Processing your request...").classes("text-gray-500")
+if hasattr(busy_row, "set_visibility"):
+    busy_row.set_visibility(False)
+else:
+    busy_row.visible = False
+
+input_row = ui.row().classes("w-full max-w-3xl items-center gap-2")
 with input_row:
     input_field = ui.input("Command").props("autofocus").classes("flex-1")
-    ui.button("Send", on_click=submit_command)
+    send_button = ui.button("Send", on_click=submit_command)
 input_field.on("keydown.enter", submit_command)
 
 ui.run(host=FRONTEND_HOST, port=FRONTEND_PORT)
