@@ -1,7 +1,8 @@
-from typing import Callable, Dict, List
+from typing import Dict, List
 
 from nicegui import ui
 
+from src.frontend.components.lore_grid import render_lore_grid
 from src.frontend.state import add_lore_entry, delete_lore_entry, list_lore, update_lore_entry
 from src.frontend.ui_constants import (
     DIALOG_ACTIONS,
@@ -10,53 +11,15 @@ from src.frontend.ui_constants import (
     DIALOG_INPUT,
     DIALOG_INPUT_PROPS,
     DIALOG_TITLE,
-    LORE_ADD_CARD,
-    LORE_ADD_ICON,
-    LORE_ADD_TEXT,
-    LORE_CARD,
-    LORE_CARD_BODY,
-    LORE_CARD_TITLE,
-    LORE_GRID,
-    LORE_MENU_BUTTON,
-    LORE_TAG,
 )
-
-
-def _render_lore_grid(
-    container: ui.element,
-    entries: List[Dict[str, str]],
-    on_add: Callable[[], None],
-    on_edit: Callable[[Dict[str, str]], None],
-    on_delete: Callable[[Dict[str, str]], None],
-    on_duplicate: Callable[[Dict[str, str]], None],
-) -> None:
-    container.clear()
-    with container:
-        with ui.element("div").classes(LORE_GRID):
-            with ui.card().classes(LORE_ADD_CARD).on("click", lambda _: on_add()):
-                ui.label("+").classes(LORE_ADD_ICON)
-                ui.label("Add character info, location, faction, and more").classes(LORE_ADD_TEXT)
-
-            for entry in entries:
-                with ui.card().classes(LORE_CARD):
-                    ui.label(entry.get("title", "")).classes(LORE_CARD_TITLE)
-                    ui.label(entry.get("description", "")).classes(LORE_CARD_BODY)
-                    with ui.row().classes("items-center mt-auto"):
-                        ui.label(entry.get("tag", "")).classes(LORE_TAG)
-                        ui.element("div").classes("flex-1")
-                        menu_button = ui.button(icon="more_horiz").props("flat dense").classes(LORE_MENU_BUTTON)
-                        with ui.menu() as menu:
-                            ui.menu_item("Edit", on_click=lambda _, e=entry: on_edit(e))
-                            ui.menu_item("Duplicate", on_click=lambda _, e=entry: on_duplicate(e))
-                            ui.menu_item("Delete", on_click=lambda _, e=entry: on_delete(e))
-                        menu_button.on("click", menu.open)
+from src.shared.lore_tags import LORE_TAG_OPTIONS
 
 
 def render_lore_tab(story_id: str) -> None:
-    tag_options = ["NPC", "Place", "Race", "Event", "Faction", "Custom"]
+    tag_options = LORE_TAG_OPTIONS
 
     def refresh() -> None:
-        _render_lore_grid(
+        render_lore_grid(
             grid_container,
             list_lore(story_id),
             open_add_dialog,
@@ -75,10 +38,17 @@ def render_lore_tab(story_id: str) -> None:
                 if option.lower() == tag.lower():
                     tag_value = option
                     break
+        if tag and not tag_value:
+            tag_value = "Custom"
+            custom_tag_input.value = tag
+        else:
+            custom_tag_input.value = ""
         tag_input.value = tag_value
+        toggle_custom(tag_value)
         title_input.update()
         description_input.update()
         triggers_input.update()
+        custom_tag_input.update()
         tag_input.update()
 
     def open_add_dialog() -> None:
@@ -110,7 +80,7 @@ def render_lore_tab(story_id: str) -> None:
                 entry_id,
                 title_input.value or "",
                 description_input.value or "",
-                tag_input.value or "",
+                custom_tag_input.value if tag_input.value == "Custom" else (tag_input.value or ""),
                 triggers_input.value or "",
             )
         else:
@@ -118,7 +88,7 @@ def render_lore_tab(story_id: str) -> None:
                 story_id,
                 title_input.value or "",
                 description_input.value or "",
-                tag_input.value or "",
+                custom_tag_input.value if tag_input.value == "Custom" else (tag_input.value or ""),
                 triggers_input.value or "",
             )
         edit_state["entry_id"] = ""
@@ -152,18 +122,39 @@ def render_lore_tab(story_id: str) -> None:
                 )
                 triggers_input = ui.input("Triggers").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
                 tag_input = ui.select(tag_options, label="Tag").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                custom_tag_input = (
+                    ui.input("Custom tag")
+                    .props(f"{DIALOG_INPUT_PROPS} placeholder=Enter a custom type...")
+                    .classes(DIALOG_INPUT)
+                )
+                if hasattr(custom_tag_input, "set_visibility"):
+                    custom_tag_input.set_visibility(False)
+                else:
+                    custom_tag_input.visible = False
                 with ui.row().classes(DIALOG_ACTIONS):
                     ui.button("Cancel", on_click=dialog.close)
                     ui.button("Save", on_click=handle_save)
 
     def sync_title_label(value: str) -> None:
         if edit_state.get("entry_id"):
-            dialog_title_label.text = value or "Lore Entry 1"
+            dialog_title_label.text = value or "Lore Entry"
         else:
-            dialog_title_label.text = value or "New Lore Entry 2"
+            dialog_title_label.text = value or "New Lore Entry"
         dialog_title_label.update()
 
     title_input.on("input", lambda e: sync_title_label(e.value))
+    def toggle_custom(value: str | None) -> None:
+        is_custom = value == "Custom"
+        if hasattr(custom_tag_input, "set_visibility"):
+            custom_tag_input.set_visibility(is_custom)
+        else:
+            custom_tag_input.visible = is_custom
+        if not is_custom:
+            custom_tag_input.value = ""
+            custom_tag_input.update()
+
+    tag_input.on("update:model-value", lambda e: toggle_custom(tag_input.value))
+    tag_input.on("change", lambda e: toggle_custom(tag_input.value))
 
     grid_container = ui.element("div").classes("w-full")
     refresh()
