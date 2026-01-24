@@ -2,6 +2,7 @@ from typing import Callable, Tuple
 
 from nicegui import ui
 
+from src.frontend.components.lore_tab import render_lore_tab
 from src.frontend.components.plot_fields import plot_field
 from src.frontend.state import update_story_field
 from src.frontend.ui_constants import (
@@ -64,7 +65,7 @@ def create_story_side_panel(story: dict) -> Tuple[ui.element, Callable[[], None]
                         on_change=lambda value: update_story_field(story["id"], "author_note", value),
                     )
                 with ui.tab_panel(tab_lore).classes("w-full q-pa-none"):
-                    ui.label("Lore overview goes here.").classes(SIDE_PANEL_SECTION)
+                    render_lore_tab(story["id"])
                 with ui.tab_panel(tab_settings).classes("w-full q-pa-none"):
                     ui.label("Story settings go here.").classes(SIDE_PANEL_SECTION)
 

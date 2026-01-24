@@ -27,3 +27,14 @@ COMPONENT_CONTAINER = THEME.component_container
 COMPONENT_INPUT = THEME.component_input
 COMPONENT_INPUT_CLASS = THEME.component_input_class
 COMPONENT_INPUT_STYLE = THEME.component_input_style
+
+LORE_TOOLBAR = THEME.lore_toolbar
+LORE_GRID = THEME.lore_grid
+LORE_ADD_CARD = THEME.lore_add_card
+LORE_ADD_ICON = THEME.lore_add_icon
+LORE_ADD_TEXT = THEME.lore_add_text
+LORE_CARD = THEME.lore_card
+LORE_CARD_TITLE = THEME.lore_card_title
+LORE_CARD_BODY = THEME.lore_card_body
+LORE_TAG = THEME.lore_tag
+LORE_MENU_BUTTON = THEME.lore_menu_button

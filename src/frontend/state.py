@@ -8,6 +8,7 @@ Message = Dict[str, str]
 _stories: Dict[str, Story] = {}
 _story_order: List[str] = []
 _story_counter = 1
+_lore_counter = 1
 
 
 def list_story_ids() -> List[str]:
@@ -31,6 +32,7 @@ def create_story(title: str, ai_instruction_key: str | None = None) -> str:
         "plot_summary": "",
         "plot_essentials": "",
         "author_note": "",
+        "lore": [],
     }
     _stories[story_id] = story
     _story_order.insert(0, story_id)
@@ -56,3 +58,57 @@ def update_story_field(story_id: str, field: str, value: str) -> None:
     if not story:
         return
     story[field] = value
+
+
+def list_lore(story_id: str) -> List[Dict[str, str]]:
+    story = _stories.get(story_id)
+    if not story:
+        return []
+    return list(story.get("lore", []))
+
+
+def add_lore_entry(story_id: str, title: str, description: str, tag: str, triggers: str = "") -> str:
+    global _lore_counter
+    story = _stories.get(story_id)
+    if not story:
+        return ""
+    entry_id = f"lore-{_lore_counter}"
+    _lore_counter += 1
+    entry = {
+        "id": entry_id,
+        "title": title.strip(),
+        "description": description.strip(),
+        "tag": tag.strip().upper(),
+        "triggers": triggers.strip(),
+    }
+    lore = story.setdefault("lore", [])
+    lore.insert(0, entry)
+    return entry_id
+
+
+def update_lore_entry(
+    story_id: str,
+    entry_id: str,
+    title: str,
+    description: str,
+    tag: str,
+    triggers: str = "",
+) -> None:
+    story = _stories.get(story_id)
+    if not story:
+        return
+    for entry in story.get("lore", []):
+        if entry.get("id") == entry_id:
+            entry["title"] = title.strip()
+            entry["description"] = description.strip()
+            entry["tag"] = tag.strip().upper()
+            entry["triggers"] = triggers.strip()
+            return
+
+
+def delete_lore_entry(story_id: str, entry_id: str) -> None:
+    story = _stories.get(story_id)
+    if not story:
+        return
+    lore = story.get("lore", [])
+    story["lore"] = [entry for entry in lore if entry.get("id") != entry_id]

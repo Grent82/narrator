@@ -27,6 +27,16 @@ class Theme:
     component_input: str
     component_input_class: str
     component_input_style: str
+    lore_toolbar: str
+    lore_grid: str
+    lore_add_card: str
+    lore_add_icon: str
+    lore_add_text: str
+    lore_card: str
+    lore_card_title: str
+    lore_card_body: str
+    lore_tag: str
+    lore_menu_button: str
 
 
 THEMES = {
@@ -57,6 +67,16 @@ THEMES = {
         component_input="w-full text-xs",
         component_input_class="text-slate-200",
         component_input_style="color:#e2e8f0;",
+        lore_toolbar="w-full flex flex-col gap-4",
+        lore_grid="grid grid-cols-2 gap-4",
+        lore_add_card="rounded-xl border border-amber-500/40 bg-amber-900/40 p-4 flex flex-col items-center justify-center text-center min-h-32",
+        lore_add_icon="text-amber-300 text-4xl",
+        lore_add_text="text-amber-200 text-sm",
+        lore_card="rounded-xl border border-slate-700/60 bg-slate-800/60 p-4 flex flex-col h-full min-h-32",
+        lore_card_title="text-slate-100 font-semibold text-lg",
+        lore_card_body="text-slate-400 text-sm w-full max-h-24 overflow-hidden whitespace-normal break-all",
+        lore_tag="text-[10px] uppercase bg-slate-700/70 text-slate-200 px-2 py-0.5 rounded-full tracking-wide",
+        lore_menu_button="text-slate-300",
     ),
 }
 
