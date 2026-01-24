@@ -15,8 +15,8 @@ def register_index_page() -> None:
         def open_story(story_id: str) -> None:
             ui.navigate.to(f"/story/{story_id}")
 
-        def handle_create(title: str) -> None:
-            story_id = create_story(title)
+        def handle_create(title: str, preset_key: str) -> None:
+            story_id = create_story(title, preset_key)
             ui.navigate.to(f"/story/{story_id}")
 
         def handle_delete(story_id: str) -> None:

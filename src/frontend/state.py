@@ -18,14 +18,16 @@ def get_story(story_id: str) -> Optional[Story]:
     return _stories.get(story_id)
 
 
-def create_story(title: str) -> str:
+def create_story(title: str, ai_instruction_key: str | None = None) -> str:
     global _story_counter
     story_id = f"story-{_story_counter}"
     _story_counter += 1
+    instruction_key = ai_instruction_key or DEFAULT_AI_INSTRUCTION_KEY
     story: Story = {
         "id": story_id,
         "title": title.strip() or "Untitled Story",
         "messages": [],
+        "ai_instructions": get_ai_instructions(instruction_key),
         "plot_summary": "",
         "plot_essentials": "",
         "author_note": "",
