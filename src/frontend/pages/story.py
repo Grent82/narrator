@@ -5,10 +5,12 @@ from nicegui import ui
 from src.frontend.components.chat_log import create_chat_log
 from src.frontend.components.story_actions import create_story_actions
 from src.frontend.components.story_header import story_header
+from src.frontend.components.story_side_panel import create_story_side_panel
 from src.frontend.state import get_story
 
 
 def register_story_page(backend_url: str, log_error: Callable[[str], None]) -> None:
+    
     @ui.page("/story/{story_id}")
     def story_page(story_id: str) -> None:
         story = get_story(story_id)
@@ -17,7 +19,12 @@ def register_story_page(backend_url: str, log_error: Callable[[str], None]) -> N
             ui.button("Back to stories", on_click=lambda: ui.navigate.to("/"))
             return
 
-        story_header(str(story["title"]), on_back=lambda: ui.navigate.to("/"))
+        _, toggle_panel = create_story_side_panel(story)
+        story_header(
+            str(story["title"]),
+            on_back=lambda: ui.navigate.to("/"),
+            on_settings=toggle_panel,
+        )
 
         _, append_user, append_assistant = create_chat_log(story["messages"])
 

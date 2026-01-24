@@ -5,7 +5,7 @@ from nicegui import ui
 from src.frontend.ui_constants import CARD_WIDTH, ROW_END, SECTION_TITLE, TEXT_MUTED
 
 
-def create_story_dialog(on_create: Callable[[str], None]) -> ui.dialog:
+def create_story_dialog(on_create: Callable[[str, str], None]) -> ui.dialog:
     dialog = ui.dialog()
     with dialog:
         with ui.card().classes(CARD_WIDTH):

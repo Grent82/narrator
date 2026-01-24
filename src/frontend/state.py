@@ -1,5 +1,7 @@
 from typing import Dict, List, Optional
 
+from src.frontend.story_defaults import DEFAULT_AI_INSTRUCTION_KEY, get_ai_instructions
+
 Story = Dict[str, object]
 Message = Dict[str, str]
 
@@ -24,6 +26,9 @@ def create_story(title: str) -> str:
         "id": story_id,
         "title": title.strip() or "Untitled Story",
         "messages": [],
+        "plot_summary": "",
+        "plot_essentials": "",
+        "author_note": "",
     }
     _stories[story_id] = story
     _story_order.insert(0, story_id)
@@ -42,3 +47,10 @@ def append_message(story_id: str, role: str, text: str) -> None:
         return
     messages = story.setdefault("messages", [])
     messages.append({"role": role, "text": text})
+
+
+def update_story_field(story_id: str, field: str, value: str) -> None:
+    story = _stories.get(story_id)
+    if not story:
+        return
+    story[field] = value
