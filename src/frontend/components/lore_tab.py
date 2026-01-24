@@ -4,6 +4,12 @@ from nicegui import ui
 
 from src.frontend.state import add_lore_entry, delete_lore_entry, list_lore, update_lore_entry
 from src.frontend.ui_constants import (
+    DIALOG_ACTIONS,
+    DIALOG_BODY,
+    DIALOG_CARD,
+    DIALOG_INPUT,
+    DIALOG_INPUT_PROPS,
+    DIALOG_TITLE,
     LORE_ADD_CARD,
     LORE_ADD_ICON,
     LORE_ADD_TEXT,
@@ -13,7 +19,6 @@ from src.frontend.ui_constants import (
     LORE_GRID,
     LORE_MENU_BUTTON,
     LORE_TAG,
-    LORE_TOOLBAR,
 )
 
 
@@ -48,7 +53,7 @@ def _render_lore_grid(
 
 
 def render_lore_tab(story_id: str) -> None:
-    tag_options = ["Character", "Place", "Race", "Event", "Item", "Faction", "Rule"]
+    tag_options = ["NPC", "Place", "Race", "Event", "Faction", "Custom"]
 
     def refresh() -> None:
         _render_lore_grid(
@@ -136,14 +141,18 @@ def render_lore_tab(story_id: str) -> None:
 
     dialog = ui.dialog()
     with dialog:
-        with ui.card().classes("w-96 mx-auto"):
-            with ui.column().classes("w-full items-center gap-4"):
-                dialog_title_label = ui.label("Lore Entry").classes("text-lg font-semibold text-center w-full")
-                title_input = ui.input("Title").classes("w-full")
-                description_input = ui.textarea("Description").props("autogrow").classes("w-full")
-                triggers_input = ui.input("Triggers").classes("w-full")
-                tag_input = ui.select(tag_options, label="Tag").classes("w-full")
-                with ui.row().classes("w-full justify-center gap-3"):
+        with ui.card().classes(DIALOG_CARD):
+            with ui.column().classes(DIALOG_BODY):
+                dialog_title_label = ui.label("Lore Entry").classes(DIALOG_TITLE)
+                title_input = ui.input("Title").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                description_input = (
+                    ui.textarea("Description")
+                    .props(f"autogrow {DIALOG_INPUT_PROPS}")
+                    .classes(DIALOG_INPUT)
+                )
+                triggers_input = ui.input("Triggers").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                tag_input = ui.select(tag_options, label="Tag").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                with ui.row().classes(DIALOG_ACTIONS):
                     ui.button("Cancel", on_click=dialog.close)
                     ui.button("Save", on_click=handle_save)
 

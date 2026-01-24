@@ -20,18 +20,20 @@ def register_story_page(backend_url: str, log_error: Callable[[str], None]) -> N
             return
 
         _, toggle_panel = create_story_side_panel(story)
-        story_header(
-            str(story["title"]),
-            on_back=lambda: ui.navigate.to("/"),
-            on_settings=toggle_panel,
-        )
 
-        _, append_user, append_assistant = create_chat_log(story["messages"])
+        with ui.column().classes("w-full items-center"):
+            story_header(
+                str(story["title"]),
+                on_back=lambda: ui.navigate.to("/"),
+                on_settings=toggle_panel,
+            )
 
-        create_story_actions(
-            story_id=story_id,
-            backend_url=backend_url,
-            log_error=log_error,
-            append_user_label=append_user,
-            append_assistant_label=append_assistant,
-        )
+            _, append_user, append_assistant = create_chat_log(story["messages"])
+
+            create_story_actions(
+                story_id=story_id,
+                backend_url=backend_url,
+                log_error=log_error,
+                append_user_label=append_user,
+                append_assistant_label=append_assistant,
+            )

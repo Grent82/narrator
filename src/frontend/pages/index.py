@@ -10,7 +10,8 @@ from src.frontend.state import create_story, delete_story, get_story, list_story
 def register_index_page() -> None:
     @ui.page("/")
     def index_page() -> None:
-        page_title("Stories")
+        with ui.row().classes("w-full justify-center"):
+            page_title("Stories")
 
         def open_story(story_id: str) -> None:
             ui.navigate.to(f"/story/{story_id}")
@@ -25,20 +26,21 @@ def register_index_page() -> None:
 
         dialog = create_story_dialog(handle_create)
 
-        with ui.row().classes("items-center gap-2"):
+        with ui.row().classes("w-full justify-center"):
             ui.button("New story", on_click=dialog.open)
 
-        story_ids = list_story_ids()
-        if not story_ids:
-            empty_state("No stories yet.")
-            return
+        with ui.column().classes("w-full items-center"):
+            story_ids = list_story_ids()
+            if not story_ids:
+                empty_state("No stories yet.")
+                return
 
-        for story_id in story_ids:
-            story = get_story(story_id)
-            if not story:
-                continue
-            story_card(
-                str(story["title"]),
-                on_open=lambda sid=story_id: open_story(sid),
-                on_delete=lambda sid=story_id: handle_delete(sid),
-            )
+            for story_id in story_ids:
+                story = get_story(story_id)
+                if not story:
+                    continue
+                story_card(
+                    str(story["title"]),
+                    on_open=lambda sid=story_id: open_story(sid),
+                    on_delete=lambda sid=story_id: handle_delete(sid),
+                )
