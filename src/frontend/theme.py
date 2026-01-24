@@ -77,7 +77,7 @@ THEMES = {
         dialog_title="text-lg font-semibold text-center w-full",
         dialog_body="w-full items-center gap-4",
         dialog_actions="w-full justify-center gap-3",
-        dialog_input="w-full",
+        dialog_input="w-full justify-center",
         dialog_input_props="dark filled rounded color=blue-4 label-color=grey-4 input-class=text-slate-100",
     ),
 }
