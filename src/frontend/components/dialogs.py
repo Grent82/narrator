@@ -1,4 +1,5 @@
 from typing import Callable, Dict, List
+from uuid import uuid4
 
 from nicegui import ui
 
@@ -37,26 +38,9 @@ def _story_dialog(
 ) -> ui.dialog:
     dialog = ui.dialog()
     lore_entries: List[Dict[str, str]] = [dict(entry) for entry in initial_lore_entries]
-    lore_counter = 1
 
     def next_lore_id() -> str:
-        nonlocal lore_counter
-        entry_id = f"lore-{lore_counter}"
-        lore_counter += 1
-        return entry_id
-
-    def seed_lore_counter() -> None:
-        nonlocal lore_counter
-        max_id = 0
-        for entry in lore_entries:
-            entry_id = str(entry.get("id", ""))
-            if entry_id.startswith("lore-"):
-                suffix = entry_id[5:]
-                if suffix.isdigit():
-                    max_id = max(max_id, int(suffix))
-        lore_counter = max_id + 1 if max_id else lore_counter
-
-    seed_lore_counter()
+        return str(uuid4())
 
     def apply_preset(key: str | None) -> None:
         preset_key = key or DEFAULT_AI_INSTRUCTION_KEY
@@ -101,7 +85,7 @@ def _story_dialog(
                                 title=summary_def.title,
                                 help_text=summary_def.help_text(editable=False),
                                 value=initial_plot_summary,
-                                readonly=True,
+                                readonly=False,
                             )
 
                             plot_essentials_input = plot_field(
@@ -131,6 +115,7 @@ def _story_dialog(
                             )
 
                 with ui.row().classes(DIALOG_ACTIONS):
+                    ui.button("Cancel", on_click=dialog.close)
                     ui.button(
                         submit_label,
                         on_click=lambda: (
@@ -344,7 +329,6 @@ def confirm_delete_dialog(
             ui.label(title).classes(DIALOG_TITLE)
             ui.label(message).classes(TEXT_MUTED)
             with ui.row().classes(DIALOG_ACTIONS):
-                ui.button("Cancel", on_click=dialog.close)
                 ui.button(
                     "Delete",
                     color="negative",

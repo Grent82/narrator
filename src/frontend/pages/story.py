@@ -28,7 +28,7 @@ def register_story_page(backend_url: str, log_error: Callable[[str], None]) -> N
                 on_settings=toggle_panel,
             )
 
-            _, append_user, append_assistant = create_chat_log(story["messages"])
+            _, append_user, append_assistant = create_chat_log(story.get("messages", []))
 
             create_story_actions(
                 story_id=story_id,
