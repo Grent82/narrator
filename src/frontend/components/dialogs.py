@@ -115,7 +115,6 @@ def _story_dialog(
                             )
 
                 with ui.row().classes(DIALOG_ACTIONS):
-                    ui.button("Cancel", on_click=dialog.close)
                     ui.button(
                         submit_label,
                         on_click=lambda: (
