@@ -42,7 +42,7 @@ class Theme:
 
 THEMES = {
     "default": Theme(
-        content_width="w-full max-w-3xl",
+        content_width="w-full",
         row_gap="items-center gap-2",
         flex_1="flex-1",
         

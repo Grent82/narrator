@@ -8,7 +8,7 @@ Message = Dict[str, str]
 
 
 def create_chat_log(messages: list[Message]) -> Tuple[ui.column, Callable[[str], None], Callable[[str], ui.label]]:
-    log = ui.column().classes(f"{CONTENT_WIDTH} gap-2")
+    log = ui.column().classes(f"{CONTENT_WIDTH} gap-2 max-w-3xl")
     for msg in messages:
         if msg.get("role") == "user":
             with log:

@@ -6,7 +6,7 @@ from src.frontend.ui_constants import CONTENT_WIDTH, ROW_GAP, TEXT_MUTED
 
 
 def create_busy_indicator(label: str) -> Tuple[ui.row, Callable[[], None], Callable[[], None]]:
-    row = ui.row().classes(f"{CONTENT_WIDTH} {ROW_GAP}")
+    row = ui.row().classes(f"{CONTENT_WIDTH} {ROW_GAP}  max-w-3xl justify-center")
     with row:
         ui.spinner(size="md")
         ui.label(label).classes(TEXT_MUTED)

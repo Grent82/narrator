@@ -12,7 +12,7 @@ def story_card(
     on_edit: Callable[[], None],
     on_delete: Callable[[], None],
 ) -> None:
-    with ui.card().classes(CONTENT_WIDTH):
+    with ui.card().classes(CONTENT_WIDTH + " max-w-3xl"):
         with ui.row().classes("items-center justify-between"):
             ui.label(title).classes(TEXT_LG)
             with ui.row().classes("items-center gap-2"):

@@ -19,7 +19,7 @@ def create_story_side_panel(story: dict) -> Tuple[ui.element, Callable[[], None]
     drawer = ui.right_drawer().classes(SIDE_PANEL).props(SIDE_PANEL_PROPS)
 
     with drawer:
-        with ui.column():
+        with ui.column().classes('w-full gap-4 p-4'):
 
             with ui.row().classes(SIDE_PANEL_NAV):
                 with ui.tabs().classes(SIDE_PANEL_TABS) as tabs:
