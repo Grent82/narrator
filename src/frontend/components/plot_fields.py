@@ -77,6 +77,6 @@ def plot_field(
     help_label.bind_visibility_from(textarea, "value", backward=show_when_empty)
 
     if on_change:
-        textarea.on("change", lambda e: on_change(e.value))
+        textarea.on("change", lambda _: on_change(textarea.value or ""))
 
     return textarea

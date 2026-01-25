@@ -38,7 +38,7 @@ def create_story_actions(
 
         try:
             buffer = ""
-            async for chunk in stream_turn(backend_url, cmd):
+            async for chunk in stream_turn(backend_url, cmd, story_id=story_id):
                 buffer += chunk
                 story = get_story(story_id)
                 if story and story.get("messages"):
