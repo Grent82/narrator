@@ -514,3 +514,6 @@ Mkfile.old
 dkms.conf
 .deps/
 .libs/
+
+data/*
+backups/*
