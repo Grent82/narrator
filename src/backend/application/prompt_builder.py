@@ -9,11 +9,7 @@ def _format_lore(entries: Iterable[LoreEntryModel]) -> str:
         title = entry.title.strip() if entry.title else ""
         tag = entry.tag.strip() if entry.tag else ""
         description = entry.description.strip() if entry.description else ""
-        lines.append(f"* {tag} -")
-        if description:
-            lines.append(f"  {description}")
-        else:
-            lines.append(f"  {title}")
+        lines.append(f"* {tag} - {description}" if description else f"* {tag} - {title}")
     return "\n".join(lines)
 
 

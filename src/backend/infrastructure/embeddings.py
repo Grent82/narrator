@@ -1,7 +1,10 @@
+import logging
 import os
 from typing import List, Optional
 
 from ollama import Client as OllamaClient
+
+logger = logging.getLogger("backend.embeddings")
 
 
 def _get_embed_model() -> str:
@@ -23,8 +26,17 @@ def _normalize_embeddings(response: dict) -> Optional[List[float]]:
 
 def embed_text(ollama: OllamaClient, text: str) -> Optional[List[float]]:
     model = _get_embed_model()
-    response = ollama.embed(model=model, input=text)
-    return _normalize_embeddings(response)
+    try:
+        response = ollama.embed(model=model, input=text)
+        return _normalize_embeddings(response)
+    except Exception as exc:
+        logger.warning("embed_failed using /api/embed, trying /api/embeddings: %s", exc)
+        try:
+            response = ollama.embeddings(model=model, prompt=text)
+            return _normalize_embeddings(response)
+        except Exception as exc2:
+            logger.warning("embed_fallback_failed: %s", exc2)
+            return None
 
 
 def build_lore_text(title: str, tag: str, triggers: str, description: str) -> str:
