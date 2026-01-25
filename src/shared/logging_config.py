@@ -6,8 +6,14 @@ def configure_logging(log_file: str, logger_name: str) -> logging.Logger:
     log_dir = os.path.dirname(log_file)
     if log_dir:
         os.makedirs(log_dir, exist_ok=True)
+    level_name = (
+        os.getenv(f"{logger_name.upper()}_LOG_LEVEL")
+        or os.getenv("LOG_LEVEL")
+        or "INFO"
+    ).upper()
+    level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         handlers=[
             logging.FileHandler(log_file),
