@@ -8,15 +8,12 @@ def _format_lore(entries: Iterable[LoreEntryModel]) -> str:
     for entry in entries:
         title = entry.title.strip() if entry.title else ""
         tag = entry.tag.strip() if entry.tag else ""
-        triggers = entry.triggers.strip() if entry.triggers else ""
         description = entry.description.strip() if entry.description else ""
-        header_parts = [part for part in [tag, title] if part]
-        header = " - ".join(header_parts) if header_parts else "Lore Entry"
-        lines.append(f"* {header}")
-        if triggers:
-            lines.append(f"  Triggers: {triggers}")
+        lines.append(f"* {tag} -")
         if description:
             lines.append(f"  {description}")
+        else:
+            lines.append(f"  {title}")
     return "\n".join(lines)
 
 
