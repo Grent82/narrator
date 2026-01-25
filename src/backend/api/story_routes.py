@@ -2,6 +2,7 @@ from typing import List
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from ollama import Client as OllamaClient
 from sqlalchemy.orm import Session
 
 from src.backend.api.schemas import (
@@ -13,7 +14,9 @@ from src.backend.api.schemas import (
     StoryUpdate,
 )
 from src.backend.infrastructure.db import get_db
+from src.backend.infrastructure.embeddings import build_lore_text, embed_text
 from src.backend.infrastructure.models import LoreEntryModel, StoryModel
+from src.backend.infrastructure.ollama_client import get_ollama_client
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -43,9 +46,18 @@ def _story_to_out(story: StoryModel) -> StoryOut:
     )
 
 
-def _apply_lore(story: StoryModel, lore: List[LoreEntryIn]) -> None:
+def _apply_lore(story: StoryModel, lore: List[LoreEntryIn], ollama: OllamaClient) -> None:
     story.lore_entries.clear()
     for entry in lore:
+        embedding = embed_text(
+            ollama,
+            build_lore_text(
+                entry.title,
+                entry.tag,
+                entry.triggers or "",
+                entry.description or "",
+            ),
+        )
         story.lore_entries.append(
             LoreEntryModel(
                 id=entry.id or str(uuid4()),
@@ -53,6 +65,7 @@ def _apply_lore(story: StoryModel, lore: List[LoreEntryIn]) -> None:
                 description=entry.description or "",
                 tag=entry.tag,
                 triggers=entry.triggers or "",
+                embedding=embedding,
             )
         )
 
@@ -72,7 +85,11 @@ def list_stories(db: Session = Depends(get_db)) -> List[StorySummary]:
 
 
 @router.post("", response_model=StoryOut, status_code=status.HTTP_201_CREATED)
-def create_story(payload: StoryCreate, db: Session = Depends(get_db)) -> StoryOut:
+def create_story(
+    payload: StoryCreate,
+    db: Session = Depends(get_db),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> StoryOut:
     story = StoryModel(
         title=payload.title.strip() or "Untitled Story",
         ai_instruction_key=payload.ai_instruction_key,
@@ -83,7 +100,7 @@ def create_story(payload: StoryCreate, db: Session = Depends(get_db)) -> StoryOu
         description=payload.description or "",
         tags=list(payload.tags or []),
     )
-    _apply_lore(story, payload.lore or [])
+    _apply_lore(story, payload.lore or [], ollama)
     db.add(story)
     db.commit()
     db.refresh(story)
@@ -99,7 +116,12 @@ def get_story(story_id: str, db: Session = Depends(get_db)) -> StoryOut:
 
 
 @router.put("/{story_id}", response_model=StoryOut)
-def update_story(story_id: str, payload: StoryUpdate, db: Session = Depends(get_db)) -> StoryOut:
+def update_story(
+    story_id: str,
+    payload: StoryUpdate,
+    db: Session = Depends(get_db),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> StoryOut:
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
@@ -120,7 +142,7 @@ def update_story(story_id: str, payload: StoryUpdate, db: Session = Depends(get_
     if payload.tags is not None:
         story.tags = list(payload.tags)
     if payload.lore is not None:
-        _apply_lore(story, payload.lore)
+        _apply_lore(story, payload.lore, ollama)
     db.commit()
     db.refresh(story)
     return _story_to_out(story)
@@ -144,16 +166,31 @@ def list_lore(story_id: str, db: Session = Depends(get_db)) -> List[LoreEntryOut
 
 
 @router.post("/{story_id}/lore", response_model=LoreEntryOut, status_code=status.HTTP_201_CREATED)
-def add_lore(story_id: str, payload: LoreEntryIn, db: Session = Depends(get_db)) -> LoreEntryOut:
+def add_lore(
+    story_id: str,
+    payload: LoreEntryIn,
+    db: Session = Depends(get_db),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> LoreEntryOut:
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    embedding = embed_text(
+        ollama,
+        build_lore_text(
+            payload.title,
+            payload.tag,
+            payload.triggers or "",
+            payload.description or "",
+        ),
+    )
     entry = LoreEntryModel(
         id=payload.id or str(uuid4()),
         title=payload.title,
         description=payload.description or "",
         tag=payload.tag,
         triggers=payload.triggers or "",
+        embedding=embedding,
         story=story,
     )
     db.add(entry)
@@ -163,7 +200,13 @@ def add_lore(story_id: str, payload: LoreEntryIn, db: Session = Depends(get_db))
 
 
 @router.put("/{story_id}/lore/{entry_id}", response_model=LoreEntryOut)
-def update_lore(story_id: str, entry_id: str, payload: LoreEntryIn, db: Session = Depends(get_db)) -> LoreEntryOut:
+def update_lore(
+    story_id: str,
+    entry_id: str,
+    payload: LoreEntryIn,
+    db: Session = Depends(get_db),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> LoreEntryOut:
     entry = (
         db.query(LoreEntryModel)
         .filter(LoreEntryModel.story_id == story_id, LoreEntryModel.id == entry_id)
@@ -175,6 +218,15 @@ def update_lore(story_id: str, entry_id: str, payload: LoreEntryIn, db: Session 
     entry.description = payload.description or ""
     entry.tag = payload.tag
     entry.triggers = payload.triggers or ""
+    entry.embedding = embed_text(
+        ollama,
+        build_lore_text(
+            payload.title,
+            payload.tag,
+            payload.triggers or "",
+            payload.description or "",
+        ),
+    )
     db.commit()
     db.refresh(entry)
     return _lore_to_out(entry)

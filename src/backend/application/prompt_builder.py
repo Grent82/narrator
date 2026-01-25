@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Optional
 
 from src.backend.infrastructure.models import LoreEntryModel, StoryModel
 
@@ -20,7 +20,11 @@ def _format_lore(entries: Iterable[LoreEntryModel]) -> str:
     return "\n".join(lines)
 
 
-def build_prompt(story: StoryModel, user_input: str) -> str:
+def build_prompt(
+    story: StoryModel,
+    user_input: str,
+    lore_entries: Optional[Iterable[LoreEntryModel]] = None,
+) -> str:
     sections = []
 
     ai_instructions = (story.ai_instructions or "").strip()
@@ -35,7 +39,7 @@ def build_prompt(story: StoryModel, user_input: str) -> str:
     if plot_essentials:
         sections.append("[PLOT ESSENTIALS]\n" + plot_essentials)
 
-    lore_block = _format_lore(story.lore_entries)
+    lore_block = _format_lore(lore_entries if lore_entries is not None else story.lore_entries)
     if lore_block:
         sections.append("[LORE]\n" + lore_block)
 

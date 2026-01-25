@@ -1,3 +1,4 @@
+import os
 from datetime import UTC, datetime
 from typing import List
 from uuid import uuid4
@@ -5,6 +6,7 @@ from uuid import uuid4
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
+from pgvector.sqlalchemy import Vector
 
 from src.backend.infrastructure.db import Base
 
@@ -26,6 +28,7 @@ class StoryModel(Base):
     author_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     tags: Mapped[List[str]] = mapped_column(JSON, nullable=False, default=list)
+    ollama_context: Mapped[List[int]] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
 
@@ -46,6 +49,7 @@ class LoreEntryModel(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     tag: Mapped[str] = mapped_column(String, nullable=False)
     triggers: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    embedding: Mapped[List[float] | None] = mapped_column(Vector(int(os.getenv("EMBED_DIM", "768"))), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
 

@@ -7,6 +7,7 @@ from ollama import Client as OllamaClient
 from pydantic import BaseModel, Field
 
 from src.backend.api.story_routes import router as story_router
+from src.backend.application.lore_retrieval import retrieve_relevant_lore
 from src.backend.application.prompt_builder import build_prompt
 from src.backend.application.summarizer import update_story_summary
 from src.backend.infrastructure.db import get_db
@@ -24,6 +25,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b")
 SUMMARY_MODEL = os.getenv("SUMMARY_MODEL", OLLAMA_MODEL)
 SUMMARY_MAX_CHARS = int(os.getenv("SUMMARY_MAX_CHARS", "2400"))
 BACKEND_LOG_FILE = os.getenv("BACKEND_LOG_FILE", "logs/backend.log")
+
 logger = configure_logging(BACKEND_LOG_FILE, "backend")
 
 class TurnRequest(BaseModel):
@@ -35,14 +37,21 @@ class TurnResponse(BaseModel):
     result: str
 
 
-def process_trigger(trigger: str, ollama: OllamaClient, story: StoryModel | None = None) -> str:
+def process_trigger(
+    trigger: str,
+    ollama: OllamaClient,
+    story: StoryModel | None = None,
+    lore_entries=None,
+) -> str:
     start = time.monotonic()
     try:
-        prompt = build_prompt(story, trigger) if story else trigger
+        prompt = build_prompt(story, trigger, lore_entries=lore_entries) if story else trigger
         logger.debug("ollama_request prompt=%s", prompt)
         logger.debug("ollama_request model=%s prompt_len=%d", OLLAMA_MODEL, len(prompt))
-        response = ollama.generate(model=OLLAMA_MODEL, prompt=prompt)
-        _log_ollama_metadata("ollama_response_meta", response)
+        context = story.ollama_context if story and story.ollama_context else None
+        response = ollama.generate(model=OLLAMA_MODEL, prompt=prompt, context=context)
+        if story and response.get("context"):
+            story.ollama_context = response.get("context")
         result = response.get("response", "").strip()
         logger.debug("ollama_response chars=%d duration_ms=%d", len(result), int((time.monotonic() - start) * 1000))
         return result
@@ -51,22 +60,30 @@ def process_trigger(trigger: str, ollama: OllamaClient, story: StoryModel | None
         return f"Ollama error: {exc}"
 
 
-def stream_trigger(trigger: str, ollama: OllamaClient, story: StoryModel | None = None, db=None):
+def stream_trigger(
+    trigger: str,
+    ollama: OllamaClient,
+    story: StoryModel | None = None,
+    lore_entries=None,
+    db=None,
+):
     start = time.monotonic()
     buffer = ""
     last_meta = {}
     try:
-        prompt = build_prompt(story, trigger) if story else trigger
+        prompt = build_prompt(story, trigger, lore_entries=lore_entries) if story else trigger
+        logger.debug("ollama_stream_request prompt=%s", prompt)
         logger.debug("ollama_stream_request model=%s prompt_len=%d", OLLAMA_MODEL, len(prompt))
-        for part in ollama.generate(model=OLLAMA_MODEL, prompt=prompt, stream=True):
+        context = story.ollama_context if story and story.ollama_context else None
+        for part in ollama.generate(model=OLLAMA_MODEL, prompt=prompt, stream=True, context=context):
             token = part.get("response", "")
             last_meta = part or last_meta
             if token:
                 buffer += token
                 yield token
         logger.debug( "ollama_stream_completed duration_ms=%d", int((time.monotonic() - start) * 1000), )
-        if last_meta:
-            _log_ollama_metadata("ollama_stream_response_meta", last_meta)
+        if story and last_meta.get("context"):
+            story.ollama_context = last_meta.get("context")
         if story and db:
             update_story_summary(
                 client=ollama,
@@ -83,24 +100,6 @@ def stream_trigger(trigger: str, ollama: OllamaClient, story: StoryModel | None 
     except Exception as exc:
         logger.exception("ollama_stream_error")
         yield f"\n[Ollama error: {exc}]"
-
-
-def _log_ollama_metadata(prefix: str, response: dict) -> None:
-    keys = [
-        "model",
-        "created_at",
-        "done",
-        "done_reason",
-        "total_duration",
-        "load_duration",
-        "prompt_eval_count",
-        "prompt_eval_duration",
-        "eval_count",
-        "eval_duration",
-    ]
-    meta = {key: response.get(key) for key in keys if key in response}
-    if meta:
-        logger.debug("%s %s", prefix, meta)
 
 
 @app.get("/health")
@@ -120,12 +119,14 @@ def handle_turn(
     ollama: OllamaClient = Depends(get_ollama_client),
 ):
     story = None
+    lore_entries = None
     if payload.story_id:
         story = db.query(StoryModel).filter(StoryModel.id == payload.story_id).first()
         if not story:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+        lore_entries = retrieve_relevant_lore(db, story.id, payload.trigger, ollama)
     logger.debug("turn_received trigger_len=%d", len(payload.trigger))
-    result = process_trigger(payload.trigger, ollama, story)
+    result = process_trigger(payload.trigger, ollama, story, lore_entries=lore_entries)
     if story:
         update_story_summary(
             client=ollama,
@@ -148,12 +149,17 @@ def handle_turn_stream(
     ollama: OllamaClient = Depends(get_ollama_client),
 ):
     story = None
+    lore_entries = None
     if payload.story_id:
         story = db.query(StoryModel).filter(StoryModel.id == payload.story_id).first()
         if not story:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+        lore_entries = retrieve_relevant_lore(db, story.id, payload.trigger, ollama)
     logger.debug("turn_stream_received trigger_len=%d", len(payload.trigger))
-    return StreamingResponse(stream_trigger(payload.trigger, ollama, story, db), media_type="text/plain")
+    return StreamingResponse(
+        stream_trigger(payload.trigger, ollama, story, lore_entries=lore_entries, db=db),
+        media_type="text/plain",
+    )
 
 
 app.include_router(story_router)
