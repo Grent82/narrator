@@ -46,4 +46,3 @@ def bind_input_actions(
     on_submit: Callable[[], None],
 ) -> None:
     send_button.on_click(on_submit)
-    input_field.on("keydown.enter", on_submit)
