@@ -40,6 +40,18 @@ class TurnResponse(BaseModel):
     result: str
 
 
+def _get_last_message_text(story: StoryModel, role: str = "assistant") -> str:
+    if not story or not story.messages:
+        return ""
+    for msg in reversed(story.messages):
+        if msg.role != role:
+            continue
+        text = (msg.text or "").strip()
+        if text:
+            return text
+    return ""
+
+
 def process_trigger(
     text: str,
     ollama: OllamaClient,
@@ -125,19 +137,22 @@ def handle_turn(
 ):
     text = payload.text if payload.text is not None else (payload.trigger or "")
     mode = normalize_mode(payload.mode)
-    if mode == "continue" and not text.strip():
-        text = "Continue the story from the most recent assistant output. Do not repeat."
     story = None
     lore_entries = None
     if payload.story_id:
         story = db.query(StoryModel).filter(StoryModel.id == payload.story_id).first()
         if not story:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+        if mode == "continue" and not text.strip():
+            last_assistant = _get_last_message_text(story, role="assistant")
+            text = last_assistant or "Continue the story from the most recent assistant output. Do not repeat."
         if mode == "continue" and story.ollama_context:
             lore_entries = []
         else:
             retrieval_query = "" if mode == "continue" else text
             lore_entries = retrieve_relevant_lore(db, story.id, retrieval_query, ollama)
+    elif mode == "continue" and not text.strip():
+        text = "Continue the story from the most recent assistant output. Do not repeat."
     logger.debug("turn_received trigger_len=%d mode=%s", len(text), mode)
     result = process_trigger(text, ollama, mode, story, lore_entries=lore_entries)
     if story:
@@ -163,19 +178,22 @@ def handle_turn_stream(
 ):
     text = payload.text if payload.text is not None else (payload.trigger or "")
     mode = normalize_mode(payload.mode)
-    if mode == "continue" and not text.strip():
-        text = "Continue the story from the most recent assistant output. Do not repeat."
     story = None
     lore_entries = None
     if payload.story_id:
         story = db.query(StoryModel).filter(StoryModel.id == payload.story_id).first()
         if not story:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+        if mode == "continue" and not text.strip():
+            last_assistant = _get_last_message_text(story, role="assistant")
+            text = last_assistant or "Continue the story from the most recent assistant output. Do not repeat."
         if mode == "continue" and story.ollama_context:
             lore_entries = []
         else:
             retrieval_query = "" if mode == "continue" else text
             lore_entries = retrieve_relevant_lore(db, story.id, retrieval_query, ollama)
+    elif mode == "continue" and not text.strip():
+        text = "Continue the story from the most recent assistant output. Do not repeat."
     logger.debug("turn_stream_received trigger_len=%d mode=%s", len(text), mode)
     return StreamingResponse(
         stream_trigger(text, ollama, mode, story, lore_entries=lore_entries, db=db),
