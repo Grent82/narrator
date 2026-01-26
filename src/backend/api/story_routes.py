@@ -3,7 +3,7 @@ import os
 from typing import List
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from ollama import Client as OllamaClient
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from src.backend.api.schemas import (
 )
 from src.backend.infrastructure.db import get_db
 from src.backend.infrastructure.embeddings import build_lore_text, embed_text
+from src.backend.infrastructure.db import SessionLocal
 from src.backend.infrastructure.models import LoreEntryModel, StoryModel
 from src.backend.infrastructure.ollama_client import get_ollama_client
 from src.backend.application.summarizer import recompute_story_summary
@@ -51,28 +52,57 @@ def _story_to_out(story: StoryModel) -> StoryOut:
     )
 
 
-def _apply_lore(story: StoryModel, lore: List[LoreEntryIn], ollama: OllamaClient) -> None:
+def _compute_lore_embedding(entry_id: str, text: str) -> None:
+    logger = logging.getLogger("backend")
+    try:
+        ollama = get_ollama_client()
+        embedding = embed_text(ollama, text)
+        if embedding is None:
+            logger.warning("lore_embedding_failed entry_id=%s", entry_id)
+            return
+    except Exception:
+        logger.exception("lore_embedding_failed entry_id=%s", entry_id)
+        return
+    db = SessionLocal()
+    try:
+        entry = db.query(LoreEntryModel).filter(LoreEntryModel.id == entry_id).first()
+        if not entry:
+            return
+        entry.embedding = embedding
+        db.commit()
+    finally:
+        db.close()
+
+
+def _queue_embedding(background_tasks: BackgroundTasks | None, entry_id: str, text: str) -> None:
+    if background_tasks is None:
+        return
+    background_tasks.add_task(_compute_lore_embedding, entry_id, text)
+
+
+def _apply_lore(story: StoryModel, lore: List[LoreEntryIn]) -> List[tuple[str, str]]:
     story.lore_entries.clear()
+    tasks: List[tuple[str, str]] = []
     for entry in lore:
-        embedding = embed_text(
-            ollama,
-            build_lore_text(
-                entry.title,
-                entry.tag,
-                entry.triggers or "",
-                entry.description or "",
-            ),
+        entry_id = entry.id or str(uuid4())
+        text = build_lore_text(
+            entry.title,
+            entry.tag,
+            entry.triggers or "",
+            entry.description or "",
         )
         story.lore_entries.append(
             LoreEntryModel(
-                id=entry.id or str(uuid4()),
+                id=entry_id,
                 title=entry.title,
                 description=entry.description or "",
                 tag=entry.tag,
                 triggers=entry.triggers or "",
-                embedding=embedding,
+                embedding=None,
             )
         )
+        tasks.append((entry_id, text))
+    return tasks
 
 
 @router.get("", response_model=List[StorySummary])
@@ -93,7 +123,7 @@ def list_stories(db: Session = Depends(get_db)) -> List[StorySummary]:
 def create_story(
     payload: StoryCreate,
     db: Session = Depends(get_db),
-    ollama: OllamaClient = Depends(get_ollama_client),
+    background_tasks: BackgroundTasks = None,
 ) -> StoryOut:
     story = StoryModel(
         title=payload.title.strip() or "Untitled Story",
@@ -105,18 +135,28 @@ def create_story(
         description=payload.description or "",
         tags=list(payload.tags or []),
     )
-    _apply_lore(story, payload.lore or [], ollama)
+    tasks = _apply_lore(story, payload.lore or [])
     db.add(story)
     db.commit()
     db.refresh(story)
+    for entry_id, text in tasks:
+        _queue_embedding(background_tasks, entry_id, text)
     return _story_to_out(story)
 
 
 @router.get("/{story_id}", response_model=StoryOut)
-def get_story(story_id: str, db: Session = Depends(get_db)) -> StoryOut:
+def get_story(
+    story_id: str,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+) -> StoryOut:
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    for entry in story.lore_entries:
+        if entry.embedding is None:
+            text = build_lore_text(entry.title, entry.tag, entry.triggers or "", entry.description or "")
+            _queue_embedding(background_tasks, entry.id, text)
     return _story_to_out(story)
 
 
@@ -125,7 +165,7 @@ def update_story(
     story_id: str,
     payload: StoryUpdate,
     db: Session = Depends(get_db),
-    ollama: OllamaClient = Depends(get_ollama_client),
+    background_tasks: BackgroundTasks = None,
 ) -> StoryOut:
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
@@ -147,9 +187,13 @@ def update_story(
     if payload.tags is not None:
         story.tags = list(payload.tags)
     if payload.lore is not None:
-        _apply_lore(story, payload.lore, ollama)
+        tasks = _apply_lore(story, payload.lore)
+    else:
+        tasks = []
     db.commit()
     db.refresh(story)
+    for entry_id, text in tasks:
+        _queue_embedding(background_tasks, entry_id, text)
     return _story_to_out(story)
 
 
@@ -163,10 +207,18 @@ def delete_story(story_id: str, db: Session = Depends(get_db)) -> None:
 
 
 @router.get("/{story_id}/lore", response_model=List[LoreEntryOut])
-def list_lore(story_id: str, db: Session = Depends(get_db)) -> List[LoreEntryOut]:
+def list_lore(
+    story_id: str,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+) -> List[LoreEntryOut]:
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    for entry in story.lore_entries:
+        if entry.embedding is None:
+            text = build_lore_text(entry.title, entry.tag, entry.triggers or "", entry.description or "")
+            _queue_embedding(background_tasks, entry.id, text)
     return [_lore_to_out(entry) for entry in story.lore_entries]
 
 
@@ -175,19 +227,16 @@ def add_lore(
     story_id: str,
     payload: LoreEntryIn,
     db: Session = Depends(get_db),
-    ollama: OllamaClient = Depends(get_ollama_client),
+    background_tasks: BackgroundTasks = None,
 ) -> LoreEntryOut:
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-    embedding = embed_text(
-        ollama,
-        build_lore_text(
-            payload.title,
-            payload.tag,
-            payload.triggers or "",
-            payload.description or "",
-        ),
+    text = build_lore_text(
+        payload.title,
+        payload.tag,
+        payload.triggers or "",
+        payload.description or "",
     )
     entry = LoreEntryModel(
         id=payload.id or str(uuid4()),
@@ -195,12 +244,13 @@ def add_lore(
         description=payload.description or "",
         tag=payload.tag,
         triggers=payload.triggers or "",
-        embedding=embedding,
+        embedding=None,
         story=story,
     )
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    _queue_embedding(background_tasks, entry.id, text)
     return _lore_to_out(entry)
 
 
@@ -210,7 +260,7 @@ def update_lore(
     entry_id: str,
     payload: LoreEntryIn,
     db: Session = Depends(get_db),
-    ollama: OllamaClient = Depends(get_ollama_client),
+    background_tasks: BackgroundTasks = None,
 ) -> LoreEntryOut:
     entry = (
         db.query(LoreEntryModel)
@@ -223,17 +273,16 @@ def update_lore(
     entry.description = payload.description or ""
     entry.tag = payload.tag
     entry.triggers = payload.triggers or ""
-    entry.embedding = embed_text(
-        ollama,
-        build_lore_text(
-            payload.title,
-            payload.tag,
-            payload.triggers or "",
-            payload.description or "",
-        ),
-    )
+    entry.embedding = None
     db.commit()
     db.refresh(entry)
+    text = build_lore_text(
+        payload.title,
+        payload.tag,
+        payload.triggers or "",
+        payload.description or "",
+    )
+    _queue_embedding(background_tasks, entry.id, text)
     return _lore_to_out(entry)
 
 
