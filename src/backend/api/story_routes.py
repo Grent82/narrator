@@ -1,15 +1,11 @@
 import logging
-import os
 from typing import List
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from ollama import Client as OllamaClient
 from sqlalchemy.orm import Session
 
 from src.backend.api.schemas import (
-    SummaryRecomputeRequest,
-    SummaryRecomputeResponse,
     LoreEntryIn,
     LoreEntryOut,
     StoryCreate,
@@ -20,9 +16,8 @@ from src.backend.api.schemas import (
 from src.backend.infrastructure.db import get_db
 from src.backend.infrastructure.embeddings import build_lore_text, embed_text
 from src.backend.infrastructure.db import SessionLocal
-from src.backend.infrastructure.models import LoreEntryModel, StoryModel
+from src.backend.infrastructure.models import LoreEntryModel, StoryMessageModel, StoryModel, StorySummaryModel
 from src.backend.infrastructure.ollama_client import get_ollama_client
-from src.backend.application.summarizer import recompute_story_summary
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -48,6 +43,7 @@ def _story_to_out(story: StoryModel) -> StoryOut:
         author_note=story.author_note or "",
         description=story.description or "",
         tags=list(story.tags or []),
+        messages=[msg.to_payload() for msg in (story.messages or [])],
         lore=[_lore_to_out(entry) for entry in story.lore_entries],
     )
 
@@ -105,6 +101,37 @@ def _apply_lore(story: StoryModel, lore: List[LoreEntryIn]) -> List[tuple[str, s
     return tasks
 
 
+def _message_value(msg, key: str, default=None):
+    if hasattr(msg, key):
+        return getattr(msg, key)
+    if isinstance(msg, dict):
+        return msg.get(key, default)
+    return default
+
+
+def _ensure_summary(story: StoryModel, summary: str | None = None) -> StorySummaryModel:
+    if story.summary_record is None:
+        story.summary_record = StorySummaryModel(summary=(summary or "").strip(), last_position=-1)
+    elif summary is not None:
+        story.summary_record.summary = (summary or "").strip()
+    return story.summary_record
+
+
+def _apply_messages(story: StoryModel, messages: List) -> None:
+    story.messages.clear()
+    for position, msg in enumerate(messages):
+        story.messages.append(
+            StoryMessageModel(
+                role=str(_message_value(msg, "role", "")).strip(),
+                text=str(_message_value(msg, "text", "") or ""),
+                mode=_message_value(msg, "mode", None),
+                position=position,
+            )
+        )
+    summary_record = _ensure_summary(story)
+    summary_record.last_position = len(messages) - 1 if messages else -1
+
+
 @router.get("", response_model=List[StorySummary])
 def list_stories(db: Session = Depends(get_db)) -> List[StorySummary]:
     stories = db.query(StoryModel).order_by(StoryModel.updated_at.desc()).all()
@@ -129,12 +156,14 @@ def create_story(
         title=payload.title.strip() or "Untitled Story",
         ai_instruction_key=payload.ai_instruction_key,
         ai_instructions=payload.ai_instructions,
-        plot_summary=payload.plot_summary or "",
         plot_essentials=payload.plot_essentials or "",
         author_note=payload.author_note or "",
         description=payload.description or "",
         tags=list(payload.tags or []),
     )
+    _ensure_summary(story, payload.plot_summary or "")
+    if payload.messages:
+        _apply_messages(story, payload.messages)
     tasks = _apply_lore(story, payload.lore or [])
     db.add(story)
     db.commit()
@@ -177,7 +206,7 @@ def update_story(
     if payload.ai_instructions is not None:
         story.ai_instructions = payload.ai_instructions
     if payload.plot_summary is not None:
-        story.plot_summary = payload.plot_summary
+        _ensure_summary(story, payload.plot_summary)
     if payload.plot_essentials is not None:
         story.plot_essentials = payload.plot_essentials
     if payload.author_note is not None:
@@ -186,6 +215,8 @@ def update_story(
         story.description = payload.description
     if payload.tags is not None:
         story.tags = list(payload.tags)
+    if payload.messages is not None:
+        _apply_messages(story, payload.messages)
     if payload.lore is not None:
         tasks = _apply_lore(story, payload.lore)
     else:
@@ -297,25 +328,3 @@ def delete_lore(story_id: str, entry_id: str, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lore entry not found")
     db.delete(entry)
     db.commit()
-
-
-@router.post("/{story_id}/summary/recompute", response_model=SummaryRecomputeResponse)
-def recompute_summary(
-    story_id: str,
-    payload: SummaryRecomputeRequest,
-    db: Session = Depends(get_db),
-    ollama: OllamaClient = Depends(get_ollama_client),
-) -> SummaryRecomputeResponse:
-    story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
-    if not story:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-    summary = recompute_story_summary(
-        client=ollama,
-        model=os.getenv("SUMMARY_MODEL", os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b")),
-        story=story,
-        messages=[msg.model_dump() for msg in payload.messages],
-        max_chars=int(os.getenv("SUMMARY_MAX_CHARS", "2400")),
-        logger=logging.getLogger("backend"),
-    )
-    db.commit()
-    return SummaryRecomputeResponse(plot_summary=summary)

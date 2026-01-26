@@ -138,19 +138,18 @@ def get_story_messages(story_id: str) -> List[Message]:
     return _ensure_messages(story)
 
 
-def recompute_summary(story_id: str, messages: List[Message]) -> None:
-    payload = {"messages": messages}
-    data = _request("POST", f"/stories/{story_id}/summary/recompute", payload)
-    if isinstance(data, dict):
-        story = _story_cache.get(story_id)
-        if story is not None:
-            story["plot_summary"] = data.get("plot_summary", "")
-
-
 def update_story_field(story_id: str, field: str, value: str) -> None:
     payload = {field: value}
     data = _request("PUT", f"/stories/{story_id}", payload)
     if isinstance(data, dict):
+        _story_cache[story_id] = data
+
+
+def update_story_messages(story_id: str, messages: List[Message]) -> None:
+    payload = {"messages": messages}
+    data = _request("PUT", f"/stories/{story_id}", payload)
+    if isinstance(data, dict):
+        _ensure_messages(data)
         _story_cache[story_id] = data
 
 

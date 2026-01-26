@@ -11,8 +11,8 @@ from src.frontend.state import (
     append_message,
     append_message_with_mode,
     get_story_messages,
-    recompute_summary,
     update_last_message,
+    update_story_messages,
 )
 
 
@@ -48,6 +48,10 @@ def create_story_actions(
         input_container.set_visibility(False)
         action_wrapper.set_visibility(True)
 
+    async def persist_messages() -> None:
+        messages_snapshot = [dict(msg) for msg in get_story_messages(story_id)]
+        await asyncio.to_thread(update_story_messages, story_id, messages_snapshot)
+
     take_turn_button.on_click(show_input_mode)
     close_button.on_click(show_action_mode)
 
@@ -82,6 +86,7 @@ def create_story_actions(
             input_field.enable()
             send_button.enable()
             show_action_mode()
+            await persist_messages()
 
     async def submit_command(_=None) -> None:
         cmd = (input_field.value or "").strip()
@@ -103,15 +108,18 @@ def create_story_actions(
         messages = get_story_messages(story_id)
         if not messages:
             return
-        if messages[-1].get("role") != "assistant":
+        last_role = messages[-1].get("role")
+        if last_role == "assistant":
+            messages.pop()
+            render_messages(messages)
+            last_user = _find_last_user(messages)
+            if last_user:
+                await send_turn(last_user.get("text", ""), last_user.get("mode", "story"), show_user=False)
+            else:
+                await send_turn("", "continue", show_user=False)
             return
-        messages.pop()
-        render_messages(messages)
-        recompute_summary(story_id, messages)
-        last_user = _find_last_user(messages)
-        if not last_user:
-            return
-        await send_turn(last_user.get("text", ""), last_user.get("mode", "story"), show_user=False)
+        if last_role == "user":
+            await send_turn(messages[-1].get("text", ""), messages[-1].get("mode", "story"), show_user=False)
 
     def handle_erase() -> None:
         messages = get_story_messages(story_id)
@@ -119,7 +127,7 @@ def create_story_actions(
             return
         messages.pop()
         render_messages(messages)
-        recompute_summary(story_id, messages)
+        asyncio.create_task(persist_messages())
 
     bind_input_actions(input_field, send_button, submit_command)
     continue_button.on_click(lambda: asyncio.create_task(handle_continue()))

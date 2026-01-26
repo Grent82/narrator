@@ -19,6 +19,12 @@ class LoreEntryOut(BaseModel):
     triggers: str = ""
 
 
+class ChatMessage(BaseModel):
+    role: str
+    text: str = ""
+    mode: Optional[str] = None
+
+
 class StoryBase(BaseModel):
     title: str
     ai_instruction_key: str
@@ -29,6 +35,7 @@ class StoryBase(BaseModel):
     description: str = ""
     tags: List[str] = Field(default_factory=list)
     lore: List[LoreEntryIn] = Field(default_factory=list)
+    messages: List[ChatMessage] = Field(default_factory=list)
 
 
 class StoryCreate(StoryBase):
@@ -45,6 +52,7 @@ class StoryUpdate(BaseModel):
     description: Optional[str] = None
     tags: Optional[List[str]] = None
     lore: Optional[List[LoreEntryIn]] = None
+    messages: Optional[List[ChatMessage]] = None
 
 
 class StoryOut(StoryBase):
@@ -58,16 +66,3 @@ class StorySummary(BaseModel):
     description: str = ""
     tags: List[str] = Field(default_factory=list)
 
-
-class ChatMessage(BaseModel):
-    role: str
-    text: str = ""
-    mode: Optional[str] = None
-
-
-class SummaryRecomputeRequest(BaseModel):
-    messages: List[ChatMessage] = Field(default_factory=list)
-
-
-class SummaryRecomputeResponse(BaseModel):
-    plot_summary: str
