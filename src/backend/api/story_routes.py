@@ -1,3 +1,5 @@
+import logging
+import os
 from typing import List
 from uuid import uuid4
 
@@ -6,6 +8,8 @@ from ollama import Client as OllamaClient
 from sqlalchemy.orm import Session
 
 from src.backend.api.schemas import (
+    SummaryRecomputeRequest,
+    SummaryRecomputeResponse,
     LoreEntryIn,
     LoreEntryOut,
     StoryCreate,
@@ -17,6 +21,7 @@ from src.backend.infrastructure.db import get_db
 from src.backend.infrastructure.embeddings import build_lore_text, embed_text
 from src.backend.infrastructure.models import LoreEntryModel, StoryModel
 from src.backend.infrastructure.ollama_client import get_ollama_client
+from src.backend.application.summarizer import recompute_story_summary
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -243,3 +248,25 @@ def delete_lore(story_id: str, entry_id: str, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lore entry not found")
     db.delete(entry)
     db.commit()
+
+
+@router.post("/{story_id}/summary/recompute", response_model=SummaryRecomputeResponse)
+def recompute_summary(
+    story_id: str,
+    payload: SummaryRecomputeRequest,
+    db: Session = Depends(get_db),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> SummaryRecomputeResponse:
+    story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
+    if not story:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    summary = recompute_story_summary(
+        client=ollama,
+        model=os.getenv("SUMMARY_MODEL", os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b")),
+        story=story,
+        messages=[msg.model_dump() for msg in payload.messages],
+        max_chars=int(os.getenv("SUMMARY_MAX_CHARS", "2400")),
+        logger=logging.getLogger("backend"),
+    )
+    db.commit()
+    return SummaryRecomputeResponse(plot_summary=summary)

@@ -57,3 +57,17 @@ class StorySummary(BaseModel):
     title: str
     description: str = ""
     tags: List[str] = Field(default_factory=list)
+
+
+class ChatMessage(BaseModel):
+    role: str
+    text: str = ""
+    mode: Optional[str] = None
+
+
+class SummaryRecomputeRequest(BaseModel):
+    messages: List[ChatMessage] = Field(default_factory=list)
+
+
+class SummaryRecomputeResponse(BaseModel):
+    plot_summary: str

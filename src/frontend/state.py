@@ -44,13 +44,23 @@ def list_story_ids() -> List[str]:
     return list(_story_order)
 
 
+def _ensure_messages(story: Story) -> List[Message]:
+    messages = story.get("messages")
+    if not isinstance(messages, list):
+        messages = []
+        story["messages"] = messages
+    return messages
+
+
 def get_story(story_id: str) -> Optional[Story]:
     cached = _story_cache.get(story_id)
     if cached and "ai_instructions" in cached:
+        _ensure_messages(cached)
         return cached
     data = _request("GET", f"/stories/{story_id}")
     if not isinstance(data, dict):
         return None
+    _ensure_messages(data)
     _story_cache[story_id] = data
     return data
 
@@ -81,6 +91,7 @@ def create_story(
         return ""
     story_id = str(data.get("id", ""))
     if story_id:
+        _ensure_messages(data)
         _story_cache[story_id] = data
     return story_id
 
@@ -93,7 +104,47 @@ def delete_story(story_id: str) -> None:
 
 
 def append_message(story_id: str, role: str, text: str) -> None:
-    _logger.debug("append_message ignored story_id=%s role=%s text_len=%d", story_id, role, len(text))
+    story = _story_cache.get(story_id)
+    if not story:
+        return
+    messages = _ensure_messages(story)
+    messages.append({"role": role, "text": text})
+
+
+def append_message_with_mode(story_id: str, role: str, text: str, mode: str | None = None) -> None:
+    story = _story_cache.get(story_id)
+    if not story:
+        return
+    messages = _ensure_messages(story)
+    message = {"role": role, "text": text}
+    if mode:
+        message["mode"] = mode
+    messages.append(message)
+
+
+def update_last_message(story_id: str, text: str) -> None:
+    story = _story_cache.get(story_id)
+    if not story:
+        return
+    messages = _ensure_messages(story)
+    if messages:
+        messages[-1]["text"] = text
+
+
+def get_story_messages(story_id: str) -> List[Message]:
+    story = get_story(story_id)
+    if not story:
+        return []
+    return _ensure_messages(story)
+
+
+def recompute_summary(story_id: str, messages: List[Message]) -> None:
+    payload = {"messages": messages}
+    data = _request("POST", f"/stories/{story_id}/summary/recompute", payload)
+    if isinstance(data, dict):
+        story = _story_cache.get(story_id)
+        if story is not None:
+            story["plot_summary"] = data.get("plot_summary", "")
 
 
 def update_story_field(story_id: str, field: str, value: str) -> None:

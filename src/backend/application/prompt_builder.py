@@ -1,5 +1,6 @@
 from typing import Iterable, Optional
 
+from src.backend.application.input_formatting import format_input_block
 from src.backend.infrastructure.models import LoreEntryModel, StoryModel
 
 
@@ -15,7 +16,8 @@ def _format_lore(entries: Iterable[LoreEntryModel]) -> str:
 
 def build_prompt(
     story: StoryModel,
-    user_input: str,
+    user_text: str,
+    mode: str = "story",
     lore_entries: Optional[Iterable[LoreEntryModel]] = None,
 ) -> str:
     sections = []
@@ -40,6 +42,6 @@ def build_prompt(
     if author_note:
         sections.append("[AUTHOR NOTE]\n" + author_note)
 
-    sections.append("[USER INPUT]\n" + user_input.strip())
+    sections.append("[USER INPUT]\n" + format_input_block(mode, user_text))
 
     return "\n\n".join(sections)

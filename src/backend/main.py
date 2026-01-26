@@ -4,10 +4,11 @@ import time
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 from ollama import Client as OllamaClient
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from src.backend.api.story_routes import router as story_router
 from src.backend.application.lore_retrieval import retrieve_relevant_lore
+from src.backend.application.input_formatting import format_user_for_summary, normalize_mode
 from src.backend.application.prompt_builder import build_prompt
 from src.backend.application.summarizer import update_story_summary
 from src.backend.infrastructure.db import get_db
@@ -29,8 +30,10 @@ BACKEND_LOG_FILE = os.getenv("BACKEND_LOG_FILE", "logs/backend.log")
 logger = configure_logging(BACKEND_LOG_FILE, "backend")
 
 class TurnRequest(BaseModel):
-    trigger: str = Field(..., min_length=1)
+    text: str | None = None
+    mode: str | None = None
     story_id: str | None = None
+    trigger: str | None = None
 
 
 class TurnResponse(BaseModel):
@@ -38,14 +41,15 @@ class TurnResponse(BaseModel):
 
 
 def process_trigger(
-    trigger: str,
+    text: str,
     ollama: OllamaClient,
+    mode: str,
     story: StoryModel | None = None,
     lore_entries=None,
 ) -> str:
     start = time.monotonic()
     try:
-        prompt = build_prompt(story, trigger, lore_entries=lore_entries) if story else trigger
+        prompt = build_prompt(story, text, mode=mode, lore_entries=lore_entries) if story else text
         logger.debug("ollama_request prompt=%s", prompt)
         logger.debug("ollama_request model=%s prompt_len=%d", OLLAMA_MODEL, len(prompt))
         context = story.ollama_context if story and story.ollama_context else None
@@ -61,8 +65,9 @@ def process_trigger(
 
 
 def stream_trigger(
-    trigger: str,
+    text: str,
     ollama: OllamaClient,
+    mode: str,
     story: StoryModel | None = None,
     lore_entries=None,
     db=None,
@@ -71,7 +76,7 @@ def stream_trigger(
     buffer = ""
     last_meta = {}
     try:
-        prompt = build_prompt(story, trigger, lore_entries=lore_entries) if story else trigger
+        prompt = build_prompt(story, text, mode=mode, lore_entries=lore_entries) if story else text
         logger.debug("ollama_stream_request prompt=%s", prompt)
         logger.debug("ollama_stream_request model=%s prompt_len=%d", OLLAMA_MODEL, len(prompt))
         context = story.ollama_context if story and story.ollama_context else None
@@ -89,7 +94,7 @@ def stream_trigger(
                 client=ollama,
                 model=SUMMARY_MODEL,
                 story=story,
-                user_input=trigger,
+                user_input=format_user_for_summary(mode, text),
                 assistant_text=buffer,
                 max_chars=SUMMARY_MAX_CHARS,
                 logger=logger,
@@ -118,21 +123,29 @@ def handle_turn(
     db=Depends(get_db),
     ollama: OllamaClient = Depends(get_ollama_client),
 ):
+    text = payload.text if payload.text is not None else (payload.trigger or "")
+    mode = normalize_mode(payload.mode)
+    if mode == "continue" and not text.strip():
+        text = "Continue the story from the most recent assistant output. Do not repeat."
     story = None
     lore_entries = None
     if payload.story_id:
         story = db.query(StoryModel).filter(StoryModel.id == payload.story_id).first()
         if not story:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-        lore_entries = retrieve_relevant_lore(db, story.id, payload.trigger, ollama)
-    logger.debug("turn_received trigger_len=%d", len(payload.trigger))
-    result = process_trigger(payload.trigger, ollama, story, lore_entries=lore_entries)
+        if mode == "continue" and story.ollama_context:
+            lore_entries = []
+        else:
+            retrieval_query = "" if mode == "continue" else text
+            lore_entries = retrieve_relevant_lore(db, story.id, retrieval_query, ollama)
+    logger.debug("turn_received trigger_len=%d mode=%s", len(text), mode)
+    result = process_trigger(text, ollama, mode, story, lore_entries=lore_entries)
     if story:
         update_story_summary(
             client=ollama,
             model=SUMMARY_MODEL,
             story=story,
-            user_input=payload.trigger,
+            user_input=format_user_for_summary(mode, text),
             assistant_text=result,
             max_chars=SUMMARY_MAX_CHARS,
             logger=logger,
@@ -148,16 +161,24 @@ def handle_turn_stream(
     db=Depends(get_db),
     ollama: OllamaClient = Depends(get_ollama_client),
 ):
+    text = payload.text if payload.text is not None else (payload.trigger or "")
+    mode = normalize_mode(payload.mode)
+    if mode == "continue" and not text.strip():
+        text = "Continue the story from the most recent assistant output. Do not repeat."
     story = None
     lore_entries = None
     if payload.story_id:
         story = db.query(StoryModel).filter(StoryModel.id == payload.story_id).first()
         if not story:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-        lore_entries = retrieve_relevant_lore(db, story.id, payload.trigger, ollama)
-    logger.debug("turn_stream_received trigger_len=%d", len(payload.trigger))
+        if mode == "continue" and story.ollama_context:
+            lore_entries = []
+        else:
+            retrieval_query = "" if mode == "continue" else text
+            lore_entries = retrieve_relevant_lore(db, story.id, retrieval_query, ollama)
+    logger.debug("turn_stream_received trigger_len=%d mode=%s", len(text), mode)
     return StreamingResponse(
-        stream_trigger(payload.trigger, ollama, story, lore_entries=lore_entries, db=db),
+        stream_trigger(text, ollama, mode, story, lore_entries=lore_entries, db=db),
         media_type="text/plain",
     )
 
