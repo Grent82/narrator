@@ -33,7 +33,7 @@ def create_input_bar() -> Tuple[ui.input, ui.button, dict, ui.element, ui.button
                 for key, label, _ in modes:
                     ui.tab(key, label=label)
         with ui.row().classes(f"{ROW_GAP} w-full"):
-            input_field = ui.input().props("autofocus").classes(FLEX_1)
+            input_field = ui.textarea().props("autogrow autofocus").classes(FLEX_1)
             send_button = ui.button("Send")
 
     set_mode("story", "What happens next?")
