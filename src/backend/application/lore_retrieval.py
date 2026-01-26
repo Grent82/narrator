@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from ollama import Client as OllamaClient
+from src.backend.application.ports import OllamaProtocol
 from sqlalchemy.orm import Session
 
 from src.backend.infrastructure.embeddings import embed_text
@@ -12,7 +12,7 @@ def retrieve_relevant_lore(
     db: Session,
     story_id: str,
     user_input: str,
-    ollama: OllamaClient,
+    ollama: OllamaProtocol,
 ) -> List[LoreEntryModel]:
     top_k = int(os.getenv("LORE_TOP_K", "8"))
     embedding = embed_text(ollama, user_input)

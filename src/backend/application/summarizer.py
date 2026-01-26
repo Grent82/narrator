@@ -1,6 +1,4 @@
-import logging
-
-from ollama import Client as OllamaClient
+from src.backend.application.ports import LoggerProtocol, OllamaProtocol
 
 from src.backend.infrastructure.models import StoryModel
 
@@ -19,13 +17,13 @@ SUMMARY_SYSTEM_PROMPT = """You are a concise story summarizer.
 
 
 def summarize_turn(
-    client: OllamaClient,
+    client: OllamaProtocol,
     model: str,
     previous_summary: str,
     user_input: str,
     assistant_text: str,
     max_chars: int,
-    logger: logging.Logger,
+    logger: LoggerProtocol,
 ) -> str:
     previous = previous_summary.strip()
     prompt = (
@@ -54,13 +52,13 @@ def summarize_turn(
 
 
 def update_story_summary(
-    client: OllamaClient,
+    client: OllamaProtocol,
     model: str,
     story: StoryModel,
     user_input: str,
     assistant_text: str,
     max_chars: int,
-    logger: logging.Logger,
+    logger: LoggerProtocol,
 ) -> str:
     updated = summarize_turn(
         client=client,
