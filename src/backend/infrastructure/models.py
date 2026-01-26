@@ -44,13 +44,6 @@ class StoryModel(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
-    context_record: Mapped["StoryContextModel | None"] = relationship(
-        "StoryContextModel",
-        back_populates="story",
-        cascade="all, delete-orphan",
-        uselist=False,
-    )
-
     lore_entries: Mapped[List["LoreEntryModel"]] = relationship(
         "LoreEntryModel",
         back_populates="story",
@@ -71,21 +64,6 @@ class StoryModel(Base):
             self.summary_record = StorySummaryModel(summary=summary, last_position=-1)
         else:
             self.summary_record.summary = summary
-
-    @property
-    def ollama_context(self) -> List[int]:
-        if self.context_record and self.context_record.context:
-            return list(self.context_record.context)
-        return []
-
-    @ollama_context.setter
-    def ollama_context(self, value: List[int]) -> None:
-        context = list(value or [])
-        if self.context_record is None:
-            self.context_record = StoryContextModel(context=context)
-        else:
-            self.context_record.context = context
-
 
 class StoryMessageModel(Base):
     __tablename__ = "story_messages"
@@ -121,15 +99,6 @@ class StorySummaryModel(Base):
     )
 
     story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="summary_record")
-
-
-class StoryContextModel(Base):
-    __tablename__ = "story_ollama_contexts"
-
-    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), primary_key=True)
-    context: Mapped[List[int]] = mapped_column(JSON, nullable=False, default=list)
-
-    story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="context_record")
 
 
 class LoreEntryModel(Base):
