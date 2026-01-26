@@ -14,10 +14,16 @@ def _format_lore(entries: Iterable[LoreEntryModel]) -> str:
     return "\n".join(lines)
 
 
-def build_prompt(
+def _message_value(msg, key: str, default=None):
+    if hasattr(msg, key):
+        return getattr(msg, key)
+    if isinstance(msg, dict):
+        return msg.get(key, default)
+    return default
+
+
+def build_system_prompt(
     story: StoryModel,
-    user_text: str,
-    mode: str = "story",
     lore_entries: Optional[Iterable[LoreEntryModel]] = None,
 ) -> str:
     sections = []
@@ -42,6 +48,42 @@ def build_prompt(
     if author_note:
         sections.append("[AUTHOR NOTE]\n" + author_note)
 
-    sections.append("[USER INPUT]\n" + format_input_block(mode, user_text))
-
     return "\n\n".join(sections)
+
+
+def _build_history_messages(messages: Iterable, max_pairs: int) -> list[dict]:
+    history = []
+    for msg in messages:
+        role = str(_message_value(msg, "role", "")).strip().lower()
+        if role not in {"user", "assistant"}:
+            continue
+        text = str(_message_value(msg, "text", "") or "")
+        if role == "assistant" and not text.strip():
+            continue
+        if role == "user":
+            mode = _message_value(msg, "mode", None)
+            content = format_input_block(mode, text)
+        else:
+            content = text
+        history.append({"role": role, "content": content})
+    if max_pairs <= 0:
+        return []
+    return history[-(max_pairs * 2) :]
+
+
+def build_chat_messages(
+    story: StoryModel | None,
+    user_text: str,
+    mode: str = "story",
+    lore_entries: Optional[Iterable[LoreEntryModel]] = None,
+    recent_pairs: int = 3,
+) -> list[dict]:
+    messages = []
+    if story:
+        system_prompt = build_system_prompt(story, lore_entries=lore_entries)
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        if story.messages:
+            messages.extend(_build_history_messages(story.messages, recent_pairs))
+    messages.append({"role": "user", "content": format_input_block(mode, user_text)})
+    return messages

@@ -1,6 +1,6 @@
 import os
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from ollama import Client as OllamaClient
 from pydantic import BaseModel
@@ -23,6 +23,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b")
 SUMMARY_MODEL = os.getenv("SUMMARY_MODEL", OLLAMA_MODEL)
 SUMMARY_MAX_CHARS = int(os.getenv("SUMMARY_MAX_CHARS", "2400"))
+RECENT_TURN_PAIRS = int(os.getenv("RECENT_TURN_PAIRS", "3"))
 BACKEND_LOG_FILE = os.getenv("BACKEND_LOG_FILE", "logs/backend.log")
 
 logger = configure_logging(BACKEND_LOG_FILE, "backend")
@@ -32,6 +33,7 @@ TURN_USE_CASE = TurnUseCase(
         model=OLLAMA_MODEL,
         summary_model=SUMMARY_MODEL,
         summary_max_chars=SUMMARY_MAX_CHARS,
+        recent_pairs=RECENT_TURN_PAIRS,
     ),
     logger,
 )

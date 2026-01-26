@@ -11,31 +11,19 @@ from src.backend.application.use_cases.turn_models import TurnContext, TurnPaylo
 from src.backend.application.use_cases.lore import LoreRepository
 from src.backend.application.use_cases.stories import StoryRepository
 
-DEFAULT_CONTINUE_PROMPT = "Continue the story from the most recent assistant output. Do not repeat."
-
 
 @dataclass(frozen=True)
 class TurnSettings:
     model: str
     summary_model: str
     summary_max_chars: int
+    recent_pairs: int = 3
 
 
 class TurnUseCase:
     def __init__(self, settings: TurnSettings, logger: LoggerProtocol) -> None:
         self._settings = settings
         self._logger = logger
-
-    def _get_last_message_text(self, story, role: str = "assistant") -> str:
-        if not story or not story.messages:
-            return ""
-        for msg in reversed(story.messages):
-            if msg.role != role:
-                continue
-            text = (msg.text or "").strip()
-            if text:
-                return text
-        return ""
 
     def _prepare_context(
         self,
@@ -52,16 +40,8 @@ class TurnUseCase:
             story = story_repo.get_story(payload.story_id)
             if not story:
                 raise ValueError("Story not found")
-            if mode == "continue" and not text.strip():
-                last_assistant = self._get_last_message_text(story, role="assistant")
-                text = last_assistant or DEFAULT_CONTINUE_PROMPT
-            if mode == "continue" and story.ollama_context:
-                lore_entries = []
-            else:
-                retrieval_query = "" if mode == "continue" else text
-                lore_entries = lore_repo.retrieve(story.id, retrieval_query, ollama)
-        elif mode == "continue" and not text.strip():
-            text = DEFAULT_CONTINUE_PROMPT
+            retrieval_query = "" if mode == "continue" else text
+            lore_entries = lore_repo.retrieve(story.id, retrieval_query, ollama)
         return TurnContext(text=text, mode=mode, story=story, lore_entries=lore_entries)
 
     def run_stream(
@@ -81,4 +61,5 @@ class TurnUseCase:
             commit=story_repo.commit,
             summary_model=self._settings.summary_model,
             summary_max_chars=self._settings.summary_max_chars,
+            recent_pairs=self._settings.recent_pairs,
         )

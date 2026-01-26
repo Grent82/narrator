@@ -6,18 +6,8 @@ from typing import Callable, Iterator
 from src.backend.application.ports import LoggerProtocol, OllamaProtocol
 
 from src.backend.application.input_formatting import format_user_for_summary
-from src.backend.application.prompt_builder import build_prompt
+from src.backend.application.prompt_builder import build_chat_messages
 from src.backend.application.use_cases.turn_models import TurnContext
-
-
-def _build_prompt_and_context(context: TurnContext) -> tuple[str, list[int] | None]:
-    if context.story:
-        prompt = build_prompt(context.story, context.text, mode=context.mode, lore_entries=context.lore_entries)
-        ollama_context = context.story.ollama_context if context.story.ollama_context else None
-    else:
-        prompt = context.text
-        ollama_context = None
-    return prompt, ollama_context
 
 
 def stream_turn(
@@ -28,23 +18,25 @@ def stream_turn(
     commit: Callable[[], None] | None = None,
     summary_model: str | None = None,
     summary_max_chars: int | None = None,
+    recent_pairs: int = 3,
 ) -> Iterator[str]:
     start = time.monotonic()
     buffer = ""
-    last_meta = {}
     try:
-        prompt, ollama_context = _build_prompt_and_context(context)
-        logger.debug("ollama_stream_request prompt=%s", prompt)
-        logger.debug("ollama_stream_request model=%s prompt_len=%d", model, len(prompt))
-        for part in ollama.generate(model=model, prompt=prompt, stream=True, context=ollama_context):
-            token = part.get("response", "")
-            last_meta = part or last_meta
+        messages = build_chat_messages(
+            context.story,
+            context.text,
+            mode=context.mode,
+            lore_entries=context.lore_entries,
+            recent_pairs=recent_pairs,
+        )
+        logger.debug("ollama_stream_request model=%s messages=%d", model, len(messages))
+        for part in ollama.chat(model=model, messages=messages, stream=True):
+            token = (part.get("message") or {}).get("content", "")
             if token:
                 buffer += token
                 yield token
         logger.debug("ollama_stream_completed duration_ms=%d", int((time.monotonic() - start) * 1000))
-        if context.story and last_meta.get("context"):
-            context.story.ollama_context = last_meta.get("context")
         if context.story and commit and summary_model and summary_max_chars is not None:
             from src.backend.application.summarizer import update_story_summary
 

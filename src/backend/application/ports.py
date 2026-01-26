@@ -14,3 +14,6 @@ class LoggerProtocol(Protocol):
 class OllamaProtocol(Protocol):
     def generate(self, *, model: str, prompt: str, stream: bool = False, context: list[int] | None = None) -> Any:
         ...
+
+    def chat(self, *, model: str, messages: list[dict], stream: bool = False) -> Any:
+        ...
