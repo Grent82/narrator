@@ -6,6 +6,7 @@ from typing import Callable, Iterator
 from src.backend.application.ports import LoggerProtocol, OllamaProtocol
 
 from src.backend.application.input_formatting import format_user_for_summary
+from src.backend.application.llm_settings import DEFAULT_OPTIONS, MODE_OPTIONS
 from src.backend.application.prompt_builder import build_chat_messages
 from src.backend.application.use_cases.turn_models import TurnContext
 
@@ -31,7 +32,8 @@ def stream_turn(
             recent_pairs=recent_pairs,
         )
         logger.debug("ollama_stream_request model=%s messages=%d", model, len(messages))
-        for part in ollama.chat(model=model, messages=messages, stream=True):
+        options = MODE_OPTIONS.get(context.mode, DEFAULT_OPTIONS)
+        for part in ollama.chat(model=model, messages=messages, stream=True, options=options):
             token = (part.get("message") or {}).get("content", "")
             if token:
                 buffer += token
