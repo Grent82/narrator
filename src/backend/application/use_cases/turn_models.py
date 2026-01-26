@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.backend.infrastructure.models import LoreEntryModel, StoryModel
+from langchain_core.documents import Document
+
+from src.backend.infrastructure.models import StoryModel
 
 
 @dataclass(frozen=True)
@@ -18,4 +20,4 @@ class TurnContext:
     text: str
     mode: str
     story: StoryModel | None
-    lore_entries: list[LoreEntryModel] | None
+    lore_entries: list[Document] | None

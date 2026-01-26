@@ -1,22 +1,26 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Protocol
 
-from src.backend.application.ports import OllamaProtocol
+from langchain_core.documents import Document
 
-from src.backend.application.lore_retrieval import retrieve_relevant_lore
-from src.backend.infrastructure.models import LoreEntryModel
+from src.backend.application.ports import EmbeddingsProtocol
+from src.backend.application.vectorstores.lore_vectorstore import LoreVectorStore
 
 
 class LoreRepository(Protocol):
-    def retrieve(self, story_id: str, query: str, ollama: OllamaProtocol) -> list[LoreEntryModel]:
+    def retrieve(self, story_id: str, query: str) -> list[Document]:
         ...
 
 
 @dataclass
 class DbLoreRepository:
     db: object
+    embeddings: EmbeddingsProtocol
 
-    def retrieve(self, story_id: str, query: str, ollama: OllamaProtocol) -> list[LoreEntryModel]:
-        return retrieve_relevant_lore(self.db, story_id, query, ollama)
+    def retrieve(self, story_id: str, query: str) -> list[Document]:
+        top_k = int(os.getenv("LORE_TOP_K", "8"))
+        store = LoreVectorStore(self.db, self.embeddings, story_id)
+        return store.similarity_search(query, k=top_k)

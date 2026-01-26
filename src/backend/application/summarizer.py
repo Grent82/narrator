@@ -1,4 +1,6 @@
-from src.backend.application.ports import LoggerProtocol, OllamaProtocol
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
 
 from src.backend.infrastructure.models import StoryModel
 
@@ -17,7 +19,7 @@ SUMMARY_SYSTEM_PROMPT = """You are a concise story summarizer.
 
 
 def summarize_turn(
-    client: OllamaProtocol,
+    client: ChatModelProtocol,
     model: str,
     previous_summary: str,
     user_input: str,
@@ -27,7 +29,6 @@ def summarize_turn(
 ) -> str:
     previous = previous_summary.strip()
     prompt = (
-        f"{SUMMARY_SYSTEM_PROMPT}\n"
         f"CURRENT SUMMARY:\n{previous}\n\n"
         f"NEW TURN:\n"
         f"User: {user_input.strip()}\n"
@@ -35,8 +36,9 @@ def summarize_turn(
         f"UPDATED SUMMARY:\n"
     )
     try:
-        response = client.generate(model=model, prompt=prompt)
-        summary = (response.get("response", "") or "").strip()
+        bound = client.bind(model=model)
+        response = bound.invoke([SystemMessage(content=SUMMARY_SYSTEM_PROMPT), HumanMessage(content=prompt)])
+        summary = (getattr(response, "content", "") or "").strip()
         if not summary:
             return previous_summary
         if previous:
@@ -52,7 +54,7 @@ def summarize_turn(
 
 
 def update_story_summary(
-    client: OllamaProtocol,
+    client: ChatModelProtocol,
     model: str,
     story: StoryModel,
     user_input: str,

@@ -68,8 +68,3 @@ def embed_text(ollama: OllamaClient, text: str) -> Optional[List[float]]:
         except Exception as exc2:
             logger.warning("embed_fallback_failed: %s", exc2)
             return None
-
-
-def build_lore_text(title: str, tag: str, triggers: str, description: str) -> str:
-    parts = [title.strip(), tag.strip(), triggers.strip(), description.strip()]
-    return "\n".join(part for part in parts if part)

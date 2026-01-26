@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Iterator, Protocol
+from typing import Any, Iterable, Iterator, Protocol
+
+from langchain_core.messages import BaseMessage
 
 
 class LoggerProtocol(Protocol):
@@ -11,9 +13,20 @@ class LoggerProtocol(Protocol):
         ...
 
 
-class OllamaProtocol(Protocol):
-    def generate(self, *, model: str, prompt: str, stream: bool = False, context: list[int] | None = None) -> Any:
+class ChatModelProtocol(Protocol):
+    def bind(self, **kwargs: Any) -> "ChatModelProtocol":
         ...
 
-    def chat(self, *, model: str, messages: list[dict], stream: bool = False, options: dict | None = None) -> Any:
+    def stream(self, input: Iterable[BaseMessage]) -> Iterator[BaseMessage]:
+        ...
+
+    def invoke(self, input: Iterable[BaseMessage]) -> BaseMessage:
+        ...
+
+
+class EmbeddingsProtocol(Protocol):
+    def embed_query(self, text: str) -> list[float]:
+        ...
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         ...

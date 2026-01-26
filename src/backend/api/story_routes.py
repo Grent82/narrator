@@ -14,10 +14,15 @@ from src.backend.api.schemas import (
     StoryUpdate,
 )
 from src.backend.infrastructure.db import get_db
-from src.backend.infrastructure.embeddings import build_lore_text, embed_text
 from src.backend.infrastructure.db import SessionLocal
-from src.backend.infrastructure.models import LoreEntryModel, StoryMessageModel, StoryModel, StorySummaryModel
-from src.backend.infrastructure.ollama_client import get_ollama_client
+from src.backend.infrastructure.langchain_clients import get_embedding_model
+from src.backend.infrastructure.models import (
+    LoreEntryModel,
+    LoreVectorModel,
+    StoryMessageModel,
+    StoryModel,
+    StorySummaryModel,
+)
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -30,6 +35,15 @@ def _lore_to_out(entry: LoreEntryModel) -> LoreEntryOut:
         tag=entry.tag,
         triggers=entry.triggers or "",
     )
+
+
+def _lore_metadata(entry: LoreEntryModel) -> dict:
+    return {
+        "lore_id": entry.id,
+        "title": entry.title,
+        "tag": entry.tag,
+        "triggers": entry.triggers or "",
+    }
 
 
 def _story_to_out(story: StoryModel) -> StoryOut:
@@ -48,45 +62,62 @@ def _story_to_out(story: StoryModel) -> StoryOut:
     )
 
 
-def _compute_lore_embedding(entry_id: str, text: str) -> None:
+def _compute_lore_vector(entry_id: str, story_id: str, text: str, metadata: dict) -> None:
     logger = logging.getLogger("backend")
     try:
-        ollama = get_ollama_client()
-        embedding = embed_text(ollama, text)
-        if embedding is None:
-            logger.warning("lore_embedding_failed entry_id=%s", entry_id)
+        embedder = get_embedding_model()
+        embedding = embedder.embed_query(text)
+        if not embedding:
+            logger.warning("lore_vector_embedding_failed entry_id=%s", entry_id)
             return
     except Exception:
-        logger.exception("lore_embedding_failed entry_id=%s", entry_id)
+        logger.exception("lore_vector_embedding_failed entry_id=%s", entry_id)
         return
     db = SessionLocal()
     try:
-        entry = db.query(LoreEntryModel).filter(LoreEntryModel.id == entry_id).first()
-        if not entry:
-            return
-        entry.embedding = embedding
+        if not metadata:
+            entry = db.query(LoreEntryModel).filter(LoreEntryModel.id == entry_id).first()
+            if entry:
+                metadata = _lore_metadata(entry)
+        existing = db.query(LoreVectorModel).filter(LoreVectorModel.lore_id == entry_id).first()
+        if existing:
+            existing.story_id = story_id
+            existing.content = text
+            existing.metadata_ = metadata
+            existing.embedding = embedding
+        else:
+            db.add(
+                LoreVectorModel(
+                    story_id=story_id,
+                    lore_id=entry_id,
+                    content=text,
+                    metadata_=metadata,
+                    embedding=embedding,
+                )
+            )
         db.commit()
     finally:
         db.close()
 
 
-def _queue_embedding(background_tasks: BackgroundTasks | None, entry_id: str, text: str) -> None:
+def _queue_vector(background_tasks: BackgroundTasks | None, entry_id: str, story_id: str, text: str, metadata: dict) -> None:
     if background_tasks is None:
         return
-    background_tasks.add_task(_compute_lore_embedding, entry_id, text)
+    background_tasks.add_task(_compute_lore_vector, entry_id, story_id, text, metadata)
 
 
-def _apply_lore(story: StoryModel, lore: List[LoreEntryIn]) -> List[tuple[str, str]]:
+def _apply_lore(story: StoryModel, lore: List[LoreEntryIn]) -> List[tuple[str, str, dict]]:
     story.lore_entries.clear()
-    tasks: List[tuple[str, str]] = []
+    tasks: List[tuple[str, str, dict]] = []
     for entry in lore:
         entry_id = entry.id or str(uuid4())
-        text = build_lore_text(
-            entry.title,
-            entry.tag,
-            entry.triggers or "",
-            entry.description or "",
-        )
+        text = entry.description or ""
+        metadata = {
+            "lore_id": entry_id,
+            "title": entry.title,
+            "tag": entry.tag,
+            "triggers": entry.triggers or "",
+        }
         story.lore_entries.append(
             LoreEntryModel(
                 id=entry_id,
@@ -94,10 +125,9 @@ def _apply_lore(story: StoryModel, lore: List[LoreEntryIn]) -> List[tuple[str, s
                 description=entry.description or "",
                 tag=entry.tag,
                 triggers=entry.triggers or "",
-                embedding=None,
             )
         )
-        tasks.append((entry_id, text))
+        tasks.append((entry_id, text, metadata))
     return tasks
 
 
@@ -168,8 +198,8 @@ def create_story(
     db.add(story)
     db.commit()
     db.refresh(story)
-    for entry_id, text in tasks:
-        _queue_embedding(background_tasks, entry_id, text)
+    for entry_id, text, metadata in tasks:
+        _queue_vector(background_tasks, entry_id, story.id, text, metadata)
     return _story_to_out(story)
 
 
@@ -182,10 +212,6 @@ def get_story(
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-    for entry in story.lore_entries:
-        if entry.embedding is None:
-            text = build_lore_text(entry.title, entry.tag, entry.triggers or "", entry.description or "")
-            _queue_embedding(background_tasks, entry.id, text)
     return _story_to_out(story)
 
 
@@ -223,8 +249,8 @@ def update_story(
         tasks = []
     db.commit()
     db.refresh(story)
-    for entry_id, text in tasks:
-        _queue_embedding(background_tasks, entry_id, text)
+    for entry_id, text, metadata in tasks:
+        _queue_vector(background_tasks, entry_id, story.id, text, metadata)
     return _story_to_out(story)
 
 
@@ -246,10 +272,6 @@ def list_lore(
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-    for entry in story.lore_entries:
-        if entry.embedding is None:
-            text = build_lore_text(entry.title, entry.tag, entry.triggers or "", entry.description or "")
-            _queue_embedding(background_tasks, entry.id, text)
     return [_lore_to_out(entry) for entry in story.lore_entries]
 
 
@@ -263,25 +285,19 @@ def add_lore(
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-    text = build_lore_text(
-        payload.title,
-        payload.tag,
-        payload.triggers or "",
-        payload.description or "",
-    )
+    text = payload.description or ""
     entry = LoreEntryModel(
         id=payload.id or str(uuid4()),
         title=payload.title,
         description=payload.description or "",
         tag=payload.tag,
         triggers=payload.triggers or "",
-        embedding=None,
         story=story,
     )
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    _queue_embedding(background_tasks, entry.id, text)
+    _queue_vector(background_tasks, entry.id, story.id, text, _lore_metadata(entry))
     return _lore_to_out(entry)
 
 
@@ -304,17 +320,28 @@ def update_lore(
     entry.description = payload.description or ""
     entry.tag = payload.tag
     entry.triggers = payload.triggers or ""
-    entry.embedding = None
     db.commit()
     db.refresh(entry)
-    text = build_lore_text(
-        payload.title,
-        payload.tag,
-        payload.triggers or "",
-        payload.description or "",
-    )
-    _queue_embedding(background_tasks, entry.id, text)
+    text = payload.description or ""
+    _queue_vector(background_tasks, entry.id, story_id, text, _lore_metadata(entry))
     return _lore_to_out(entry)
+
+
+@router.post("/{story_id}/lore/reindex", status_code=status.HTTP_202_ACCEPTED)
+def reindex_lore(
+    story_id: str,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+) -> dict:
+    story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
+    if not story:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    queued = 0
+    for entry in story.lore_entries:
+        text = entry.description or ""
+        _queue_vector(background_tasks, entry.id, story.id, text, _lore_metadata(entry))
+        queued += 1
+    return {"status": "queued", "count": queued}
 
 
 @router.delete("/{story_id}/lore/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -326,5 +353,6 @@ def delete_lore(story_id: str, entry_id: str, db: Session = Depends(get_db)) -> 
     )
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lore entry not found")
+    db.query(LoreVectorModel).filter(LoreVectorModel.lore_id == entry_id).delete(synchronize_session=False)
     db.delete(entry)
     db.commit()

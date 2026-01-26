@@ -101,6 +101,18 @@ class StorySummaryModel(Base):
     story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="summary_record")
 
 
+class LoreVectorModel(Base):
+    __tablename__ = "lore_vectors"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+    lore_id: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    metadata_: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+    embedding: Mapped[List[float] | None] = mapped_column(Vector(int(os.getenv("EMBED_DIM", "768"))), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+
+
 class LoreEntryModel(Base):
     __tablename__ = "lore_entries"
 
@@ -110,7 +122,6 @@ class LoreEntryModel(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     tag: Mapped[str] = mapped_column(String, nullable=False)
     triggers: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    embedding: Mapped[List[float] | None] = mapped_column(Vector(int(os.getenv("EMBED_DIM", "768"))), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
 

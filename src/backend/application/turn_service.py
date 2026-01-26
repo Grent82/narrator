@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Callable, Iterator
 
-from src.backend.application.ports import LoggerProtocol, OllamaProtocol
+from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
 
 from src.backend.application.input_formatting import format_user_for_summary
 from src.backend.application.llm_settings import DEFAULT_OPTIONS, MODE_OPTIONS
@@ -13,7 +13,7 @@ from src.backend.application.use_cases.turn_models import TurnContext
 
 def stream_turn(
     context: TurnContext,
-    ollama: OllamaProtocol,
+    chat_model: ChatModelProtocol,
     model: str,
     logger: LoggerProtocol,
     commit: Callable[[], None] | None = None,
@@ -35,8 +35,9 @@ def stream_turn(
         )
         logger.debug("ollama_stream_request model=%s messages=%d", model, len(messages))
         options = MODE_OPTIONS.get(context.mode, DEFAULT_OPTIONS)
-        for part in ollama.chat(model=model, messages=messages, stream=True, options=options):
-            token = (part.get("message") or {}).get("content", "")
+        bound = chat_model.bind(model=model, **options)
+        for part in bound.stream(messages):
+            token = getattr(part, "content", "") or ""
             if token:
                 buffer += token
                 yield token
@@ -45,7 +46,7 @@ def stream_turn(
             from src.backend.application.summarizer import update_story_summary
 
             update_story_summary(
-                client=ollama,
+                client=chat_model,
                 model=summary_model,
                 story=context.story,
                 user_input=format_user_for_summary(context.mode, context.text),

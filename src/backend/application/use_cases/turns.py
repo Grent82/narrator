@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterator
 
-from src.backend.application.ports import LoggerProtocol, OllamaProtocol
+from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
 
 from src.backend.application.input_formatting import normalize_mode
 from src.backend.application.turn_service import stream_turn
@@ -31,7 +31,6 @@ class TurnUseCase:
         payload: TurnPayload,
         story_repo: StoryRepository,
         lore_repo: LoreRepository,
-        ollama: OllamaProtocol,
     ) -> TurnContext:
         text = payload.text if payload.text is not None else (payload.trigger or "")
         mode = normalize_mode(payload.mode)
@@ -42,7 +41,7 @@ class TurnUseCase:
             if not story:
                 raise ValueError("Story not found")
             retrieval_query = "" if mode == "continue" else text
-            lore_entries = lore_repo.retrieve(story.id, retrieval_query, ollama)
+            lore_entries = lore_repo.retrieve(story.id, retrieval_query)
         return TurnContext(text=text, mode=mode, story=story, lore_entries=lore_entries)
 
     def run_stream(
@@ -50,13 +49,14 @@ class TurnUseCase:
         payload: TurnPayload,
         story_repo: StoryRepository,
         lore_repo: LoreRepository,
-        ollama: OllamaProtocol,
+        chat_model: ChatModelProtocol,
     ) -> Iterator[str]:
-        context = self._prepare_context(payload, story_repo, lore_repo, ollama)
+        context = self._prepare_context(payload, story_repo, lore_repo)
+        self._logger.debug("turn_stream_received context=%s", context)
         self._logger.debug("turn_stream_received trigger_len=%d mode=%s", len(context.text), context.mode)
         return stream_turn(
             context,
-            ollama,
+            chat_model,
             self._settings.model,
             self._logger,
             commit=story_repo.commit,

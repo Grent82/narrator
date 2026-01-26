@@ -1,8 +1,7 @@
 import os
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
-from ollama import Client as OllamaClient
 from pydantic import BaseModel
 
 from src.backend.api.story_routes import router as story_router
@@ -11,7 +10,7 @@ from src.backend.application.use_cases.lore import DbLoreRepository
 from src.backend.application.use_cases.stories import DbStoryRepository
 from src.backend.application.use_cases.turns import TurnSettings, TurnUseCase
 from src.backend.infrastructure.db import get_db
-from src.backend.infrastructure.ollama_client import get_ollama_client
+from src.backend.infrastructure.langchain_clients import get_chat_model, get_embedding_model
 from src.shared.logging_config import configure_logging
 
 app = FastAPI()
@@ -74,12 +73,12 @@ def healthcheck():
 def handle_turn_stream(
     payload: TurnRequest,
     db=Depends(get_db),
-    ollama: OllamaClient = Depends(get_ollama_client),
+    chat_model=Depends(get_chat_model),
 ):
     try:
         repo = DbStoryRepository(db=db)
-        lore_repo = DbLoreRepository(db=db)
-        stream = TURN_USE_CASE.run_stream(_to_turn_payload(payload), repo, lore_repo, ollama)
+        lore_repo = DbLoreRepository(db=db, embeddings=get_embedding_model())
+        stream = TURN_USE_CASE.run_stream(_to_turn_payload(payload), repo, lore_repo, chat_model)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return StreamingResponse(
