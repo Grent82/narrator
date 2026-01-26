@@ -51,7 +51,7 @@ def build_system_prompt(
     return "\n\n".join(sections)
 
 
-def _build_history_messages(messages: Iterable, max_pairs: int) -> list[dict]:
+def _build_history_messages(messages: Iterable, max_pairs: int, overlap_pairs: int = 0) -> list[dict]:
     history = []
     for msg in messages:
         role = str(_message_value(msg, "role", "")).strip().lower()
@@ -68,7 +68,8 @@ def _build_history_messages(messages: Iterable, max_pairs: int) -> list[dict]:
         history.append({"role": role, "content": content})
     if max_pairs <= 0:
         return []
-    return history[-(max_pairs * 2) :]
+    take_pairs = max_pairs + max(0, overlap_pairs)
+    return history[-(take_pairs * 2) :]
 
 
 def build_chat_messages(
@@ -77,6 +78,7 @@ def build_chat_messages(
     mode: str = "story",
     lore_entries: Optional[Iterable[LoreEntryModel]] = None,
     recent_pairs: int = 3,
+    overlap_pairs: int = 0,
 ) -> list[dict]:
     messages = []
     if story:
@@ -84,6 +86,6 @@ def build_chat_messages(
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         if story.messages:
-            messages.extend(_build_history_messages(story.messages, recent_pairs))
+            messages.extend(_build_history_messages(story.messages, recent_pairs, overlap_pairs))
     messages.append({"role": "user", "content": format_input_block(mode, user_text)})
     return messages

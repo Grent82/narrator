@@ -20,6 +20,7 @@ def stream_turn(
     summary_model: str | None = None,
     summary_max_chars: int | None = None,
     recent_pairs: int = 3,
+    overlap_pairs: int = 0,
 ) -> Iterator[str]:
     start = time.monotonic()
     buffer = ""
@@ -30,6 +31,7 @@ def stream_turn(
             mode=context.mode,
             lore_entries=context.lore_entries,
             recent_pairs=recent_pairs,
+            overlap_pairs=overlap_pairs,
         )
         logger.debug("ollama_stream_request model=%s messages=%d", model, len(messages))
         options = MODE_OPTIONS.get(context.mode, DEFAULT_OPTIONS)

@@ -18,6 +18,7 @@ class TurnSettings:
     summary_model: str
     summary_max_chars: int
     recent_pairs: int = 3
+    overlap_pairs: int = 0
 
 
 class TurnUseCase:
@@ -62,4 +63,5 @@ class TurnUseCase:
             summary_model=self._settings.summary_model,
             summary_max_chars=self._settings.summary_max_chars,
             recent_pairs=self._settings.recent_pairs,
+            overlap_pairs=self._settings.overlap_pairs,
         )
