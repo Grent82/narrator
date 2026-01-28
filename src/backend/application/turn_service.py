@@ -24,6 +24,7 @@ def stream_turn(
 ) -> Iterator[str]:
     start = time.monotonic()
     buffer = ""
+    last_usage = None
     try:
         messages = build_chat_messages(
             context.story,
@@ -39,10 +40,15 @@ def stream_turn(
         bound = chat_model.bind(model=model, **options)
         for part in bound.stream(messages):
             token = getattr(part, "content", "") or ""
+            usage = getattr(part, "response_metadata", {}).get("usage")
+            if usage:
+                last_usage = usage
             if token:
                 buffer += token
                 yield token
         logger.debug("ollama_stream_completed duration_ms=%d", int((time.monotonic() - start) * 1000))
+        if last_usage:
+            logger.debug("ollama_usage %s", last_usage)
         if context.story and commit and summary_model and summary_max_chars is not None:
             from src.backend.application.summarizer import update_story_summary
 

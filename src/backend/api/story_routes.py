@@ -24,6 +24,7 @@ from src.backend.infrastructure.models import (
     StoryModel,
     StorySummaryModel,
 )
+from src.backend.application.summarizer import resolve_summary_prompt_key
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -54,6 +55,7 @@ def _story_to_out(story: StoryModel) -> StoryOut:
         title=story.title,
         ai_instruction_key=story.ai_instruction_key,
         ai_instructions=story.ai_instructions,
+        summary_prompt_key=story.summary_prompt_key,
         plot_summary=story.plot_summary or "",
         plot_essentials=story.plot_essentials or "",
         author_note=story.author_note or "",
@@ -186,10 +188,12 @@ def create_story(
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
 ) -> StoryOut:
+    summary_prompt_key = payload.summary_prompt_key or resolve_summary_prompt_key(payload.ai_instruction_key)
     story = StoryModel(
         title=payload.title.strip() or "Untitled Story",
         ai_instruction_key=payload.ai_instruction_key,
         ai_instructions=payload.ai_instructions,
+        summary_prompt_key=summary_prompt_key,
         plot_essentials=payload.plot_essentials or "",
         author_note=payload.author_note or "",
         description=payload.description or "",
@@ -235,6 +239,10 @@ def update_story(
         story.ai_instruction_key = payload.ai_instruction_key
     if payload.ai_instructions is not None:
         story.ai_instructions = payload.ai_instructions
+    if payload.summary_prompt_key is not None:
+        story.summary_prompt_key = payload.summary_prompt_key
+    elif payload.ai_instruction_key is not None:
+        story.summary_prompt_key = resolve_summary_prompt_key(payload.ai_instruction_key)
     if payload.plot_summary is not None:
         _ensure_summary(story, payload.plot_summary)
     if payload.plot_essentials is not None:

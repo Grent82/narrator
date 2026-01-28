@@ -29,6 +29,7 @@ class StoryBase(BaseModel):
     title: str
     ai_instruction_key: str
     ai_instructions: str
+    summary_prompt_key: str = "neutral"
     plot_summary: str = ""
     plot_essentials: str = ""
     author_note: str = ""
@@ -46,6 +47,7 @@ class StoryUpdate(BaseModel):
     title: Optional[str] = None
     ai_instruction_key: Optional[str] = None
     ai_instructions: Optional[str] = None
+    summary_prompt_key: Optional[str] = None
     plot_summary: Optional[str] = None
     plot_essentials: Optional[str] = None
     author_note: Optional[str] = None
@@ -65,4 +67,3 @@ class StorySummary(BaseModel):
     title: str
     description: str = ""
     tags: List[str] = Field(default_factory=list)
-

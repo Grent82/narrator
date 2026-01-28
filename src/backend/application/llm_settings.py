@@ -6,6 +6,7 @@ STOP_SEQUENCES = ["\nUser:", "\n\n[", "</response>", "[END]"]
 
 COMMON_OPTIONS = {
     "num_ctx": int(os.getenv("OLLAMA_NUM_CTX", "16384")),
+    "num_predict": int(os.getenv("OLLAMA_NUM_PREDICT", "1024")),
     "keep_alive": os.getenv("OLLAMA_KEEP_ALIVE", "20m"),
     "min_p": float(os.getenv("OLLAMA_MIN_P", "0.08")),
     "stop": STOP_SEQUENCES,

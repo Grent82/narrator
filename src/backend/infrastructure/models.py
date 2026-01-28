@@ -23,6 +23,7 @@ class StoryModel(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     ai_instruction_key: Mapped[str] = mapped_column(String, nullable=False)
     ai_instructions: Mapped[str] = mapped_column(Text, nullable=False)
+    summary_prompt_key: Mapped[str] = mapped_column(String, nullable=False, default="neutral_summarizer")
     plot_essentials: Mapped[str] = mapped_column(Text, nullable=False, default="")
     author_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")

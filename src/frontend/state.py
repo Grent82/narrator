@@ -4,7 +4,11 @@ from typing import Dict, List, Optional
 import httpx
 
 from src.frontend.config import BACKEND_URL
-from src.frontend.story_defaults import DEFAULT_AI_INSTRUCTION_KEY, get_ai_instructions
+from src.frontend.story_defaults import (
+    DEFAULT_AI_INSTRUCTION_KEY,
+    get_ai_instructions,
+    get_summary_prompt_key,
+)
 
 Story = Dict[str, object]
 Message = Dict[str, str]
@@ -79,6 +83,7 @@ def create_story(
         "title": title,
         "ai_instruction_key": ai_instruction_key or DEFAULT_AI_INSTRUCTION_KEY,
         "ai_instructions": ai_instructions or get_ai_instructions(ai_instruction_key or DEFAULT_AI_INSTRUCTION_KEY),
+        "summary_prompt_key": get_summary_prompt_key(ai_instruction_key or DEFAULT_AI_INSTRUCTION_KEY),
         "plot_summary": "",
         "plot_essentials": plot_essentials,
         "author_note": author_note,
@@ -179,6 +184,7 @@ def update_story_from_editor(
         "title": title,
         "ai_instruction_key": ai_instruction_key,
         "ai_instructions": ai_instructions,
+        "summary_prompt_key": get_summary_prompt_key(ai_instruction_key),
         "plot_essentials": plot_essentials,
         "author_note": author_note,
         "description": description,

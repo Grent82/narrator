@@ -57,13 +57,19 @@ AI_INSTRUCTION_PRESETS = {
         "label": "Dungeon Master (Neutral)",
         "text": NEUTRAL_GAMEMASTER_STORYTELLER,
     },
-    "dar_storyteller": {
+    "dark_storyteller": {
         "label": "Storyteller (Dark Fantasy)",
         "text": DARK_STORYTELLER
     }
 }
 
 DEFAULT_AI_INSTRUCTION_KEY = "neutral_storyteller"
+DEFAULT_SUMMARY_PROMPT_KEY = "neutral_summarizer"
+
+AI_INSTRUCTION_TO_SUMMARY_PROMPT_KEY = {
+    "neutral_storyteller": "neutral_summarizer",
+    "dark_storyteller": "dark_summarizer",
+}
 
 
 def get_ai_instructions(key: str) -> str:
@@ -71,3 +77,7 @@ def get_ai_instructions(key: str) -> str:
     if preset:
         return preset["text"]
     return NEUTRAL_GAMEMASTER_STORYTELLER
+
+
+def get_summary_prompt_key(ai_instruction_key: str) -> str:
+    return AI_INSTRUCTION_TO_SUMMARY_PROMPT_KEY.get(ai_instruction_key, DEFAULT_SUMMARY_PROMPT_KEY)
