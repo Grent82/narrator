@@ -77,7 +77,7 @@ def handle_turn_stream(
 ):
     try:
         repo = DbStoryRepository(db=db)
-        lore_repo = DbLoreRepository(db=db, embeddings=get_embedding_model())
+        lore_repo = DbLoreRepository(embeddings=get_embedding_model())
         stream = TURN_USE_CASE.run_stream(_to_turn_payload(payload), repo, lore_repo, chat_model)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

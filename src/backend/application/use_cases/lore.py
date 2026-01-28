@@ -17,10 +17,9 @@ class LoreRepository(Protocol):
 
 @dataclass
 class DbLoreRepository:
-    db: object
     embeddings: EmbeddingsProtocol
 
     def retrieve(self, story_id: str, query: str) -> list[Document]:
         top_k = int(os.getenv("LORE_TOP_K", "8"))
-        store = LoreVectorStore(self.db, self.embeddings, story_id)
+        store = LoreVectorStore(self.embeddings, story_id)
         return store.similarity_search(query, k=top_k)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from typing import List
 from uuid import uuid4
@@ -8,7 +7,6 @@ from uuid import uuid4
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
-from pgvector.sqlalchemy import Vector
 
 from src.backend.infrastructure.db import Base
 
@@ -99,18 +97,6 @@ class StorySummaryModel(Base):
     )
 
     story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="summary_record")
-
-
-class LoreVectorModel(Base):
-    __tablename__ = "lore_vectors"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
-    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
-    lore_id: Mapped[str] = mapped_column(String, nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    metadata_: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
-    embedding: Mapped[List[float] | None] = mapped_column(Vector(int(os.getenv("EMBED_DIM", "768"))), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
 
 
 class LoreEntryModel(Base):

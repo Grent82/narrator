@@ -52,8 +52,6 @@ class TurnUseCase:
         chat_model: ChatModelProtocol,
     ) -> Iterator[str]:
         context = self._prepare_context(payload, story_repo, lore_repo)
-        self._logger.debug("turn_stream_received context=%s", context)
-        self._logger.debug("turn_stream_received trigger_len=%d mode=%s", len(context.text), context.mode)
         return stream_turn(
             context,
             chat_model,

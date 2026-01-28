@@ -4,13 +4,21 @@ from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from src.backend.application.input_formatting import format_input_block
+from src.backend.application.ports import LoggerProtocol
 from src.backend.infrastructure.models import StoryModel
 
 
-def _lore_value(entry, key: str) -> str:
+def _lore_value(entry, key: str, logger: LoggerProtocol = None) -> str:
+    logger and logger.debug("lore_value entry=%s key=%s", entry, key)
     if isinstance(entry, Document):
-        value = (entry.metadata or {}).get(key, "")
-        return str(value) if value is not None else ""
+        meta = entry.metadata or {}
+        value = meta.get(key)
+        if value is not None and str(value).strip():
+            return str(value)
+        if key in {"page_content", "description"}:
+            content = getattr(entry, "page_content", "") or ""
+            return str(content)
+        return ""
     if hasattr(entry, key):
         return str(getattr(entry, key) or "")
     if isinstance(entry, dict):
@@ -18,13 +26,17 @@ def _lore_value(entry, key: str) -> str:
     return ""
 
 
-def _format_lore(entries: Iterable) -> str:
+def _format_lore(entries: Iterable, logger: LoggerProtocol = None) -> str:
     lines = []
     for entry in entries:
-        title = _lore_value(entry, "title").strip()
-        tag = _lore_value(entry, "tag").strip()
-        description = _lore_value(entry, "description").strip()
-        lines.append(f"* {tag} - {description}" if description else f"* {tag} - {title}")
+        title = _lore_value(entry, "title", logger=logger).strip()
+        tag = _lore_value(entry, "tag", logger=logger).strip()
+        description = _lore_value(entry, "description", logger=logger).strip()
+        if description:
+            lines.append(f"* {tag} - {description}" if tag else f"* {description}")
+        else:
+            lines.append(f"* {title}" if title else "")
+        logger and logger.debug("lore_entry title=%s tag=%s description=%s", title, tag, description)
     return "\n".join(lines)
 
 
@@ -39,6 +51,7 @@ def _message_value(msg, key: str, default=None):
 def build_system_prompt(
     story: StoryModel,
     lore_entries: Optional[Iterable] = None,
+    logger: LoggerProtocol = None,
 ) -> str:
     sections = []
 
@@ -54,7 +67,7 @@ def build_system_prompt(
     if plot_essentials:
         sections.append("[PLOT ESSENTIALS]\n" + plot_essentials)
 
-    lore_block = _format_lore(lore_entries if lore_entries is not None else story.lore_entries)
+    lore_block = _format_lore(lore_entries if lore_entries is not None else story.lore_entries).strip()
     if lore_block:
         sections.append("[LORE]\n" + lore_block)
 
@@ -96,10 +109,11 @@ def build_chat_messages(
     lore_entries: Optional[Iterable] = None,
     recent_pairs: int = 3,
     overlap_pairs: int = 0,
+    logger: LoggerProtocol = None,
 ) -> list[BaseMessage]:
     messages: list[BaseMessage] = []
     if story:
-        system_prompt = build_system_prompt(story, lore_entries=lore_entries)
+        system_prompt = build_system_prompt(story, lore_entries=lore_entries, logger=logger)
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
         if story.messages:

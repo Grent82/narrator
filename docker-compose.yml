@@ -23,6 +23,7 @@ services:
     depends_on:
       - redis
       - db
+      - qdrant
 
   frontend:
     build: .
@@ -49,7 +50,7 @@ services:
       - redis-data:/data
 
   db:
-    image: pgvector/pgvector:pg16
+    image: postgres:16
     environment:
       - POSTGRES_USER=narrator
       - POSTGRES_PASSWORD=narrator
@@ -80,6 +81,14 @@ services:
       timeout: 5s
       retries: 10
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "16333:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
 volumes:
   redis-data:
   ollama-data:
+  qdrant-data:

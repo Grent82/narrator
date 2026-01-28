@@ -32,8 +32,9 @@ def stream_turn(
             lore_entries=context.lore_entries,
             recent_pairs=recent_pairs,
             overlap_pairs=overlap_pairs,
+            logger=logger,
         )
-        logger.debug("ollama_stream_request model=%s messages=%d", model, len(messages))
+        logger.debug("ollama_stream_request messages=%s", messages)
         options = MODE_OPTIONS.get(context.mode, DEFAULT_OPTIONS)
         bound = chat_model.bind(model=model, **options)
         for part in bound.stream(messages):
