@@ -223,6 +223,23 @@ def get_story(
     return _story_to_out(story)
 
 
+@router.post("/{story_id}/lore/sync", status_code=status.HTTP_204_NO_CONTENT)
+def sync_story_lore(story_id: str, db: Session = Depends(get_db)) -> None:
+    story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
+    if not story:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    if not story.lore_entries:
+        return None
+    embedder = get_embedding_model()
+    store = LoreVectorStore(embedder, story_id, vector_size=int(os.getenv("EMBED_DIM", "768")))
+    texts: list[str] = []
+    metadatas: list[dict] = []
+    for entry in story.lore_entries:
+        texts.append(build_lore_text(entry.title, entry.tag, entry.triggers or "", entry.description or ""))
+        metadatas.append(_lore_metadata(entry))
+    store.add_texts(texts, metadatas=metadatas)
+
+
 @router.put("/{story_id}", response_model=StoryOut)
 def update_story(
     story_id: str,

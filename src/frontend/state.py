@@ -69,6 +69,10 @@ def get_story(story_id: str) -> Optional[Story]:
     return data
 
 
+def sync_story_lore(story_id: str) -> None:
+    _request("POST", f"/stories/{story_id}/lore/sync")
+
+
 def create_story(
     title: str,
     ai_instruction_key: str | None = None,

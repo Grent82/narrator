@@ -6,13 +6,14 @@ from src.frontend.components.chat_log import create_chat_log
 from src.frontend.components.story_actions import create_story_actions
 from src.frontend.components.story_header import story_header
 from src.frontend.components.story_side_panel import create_story_side_panel
-from src.frontend.state import get_story
+from src.frontend.state import get_story, sync_story_lore
 
 
 def register_story_page(backend_url: str, log_error: Callable[[str], None]) -> None:
     
     @ui.page("/story/{story_id}")
     def story_page(story_id: str) -> None:
+        sync_story_lore(story_id)
         story = get_story(story_id)
         if not story:
             ui.label("Story not found.").classes("text-lg text-red-500")

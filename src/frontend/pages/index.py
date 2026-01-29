@@ -4,7 +4,7 @@ from src.frontend.components.dialogs import create_story_dialog, edit_story_dial
 from src.frontend.components.empty_state import empty_state
 from src.frontend.components.page_title import page_title
 from src.frontend.components.story_card import story_card
-from src.frontend.state import create_story, delete_story, get_story, list_story_ids, update_story_from_editor
+from src.frontend.state import create_story, delete_story, get_story, list_story_ids, sync_story_lore, update_story_from_editor
 
 
 def register_index_page() -> None:
@@ -14,6 +14,7 @@ def register_index_page() -> None:
             page_title("Stories")
 
         def open_story(story_id: str) -> None:
+            sync_story_lore(story_id)
             ui.navigate.to(f"/story/{story_id}")
 
         def handle_create(
