@@ -69,8 +69,22 @@ def get_story(story_id: str) -> Optional[Story]:
     return data
 
 
+def invalidate_story_cache(story_id: str) -> None:
+    _story_cache.pop(story_id, None)
+
+
 def sync_story_lore(story_id: str) -> None:
     _request("POST", f"/stories/{story_id}/lore/sync")
+
+
+def accept_lore_suggestion(story_id: str, suggestion_id: str) -> None:
+    _request("POST", f"/stories/{story_id}/lore/review/{suggestion_id}/accept")
+    invalidate_story_cache(story_id)
+
+
+def reject_lore_suggestion(story_id: str, suggestion_id: str) -> None:
+    _request("POST", f"/stories/{story_id}/lore/review/{suggestion_id}/reject")
+    invalidate_story_cache(story_id)
 
 
 def create_story(

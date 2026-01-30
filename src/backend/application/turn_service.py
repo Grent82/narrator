@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import threading
 import time
 from typing import Callable, Iterator
 
@@ -9,6 +11,10 @@ from src.backend.application.input_formatting import format_user_for_summary
 from src.backend.application.llm_settings import DEFAULT_OPTIONS, MODE_OPTIONS
 from src.backend.application.prompt_builder import build_chat_messages
 from src.backend.application.use_cases.turn_models import TurnContext
+from src.backend.application.lore_suggester import extract_suggestions, save_suggestions
+from src.backend.infrastructure.db import SessionLocal
+from src.backend.infrastructure.langchain_clients import get_chat_model
+from src.backend.infrastructure.models import LoreEntryModel
 
 
 def stream_turn(
@@ -37,6 +43,7 @@ def stream_turn(
         )
         logger.debug("ollama_stream_request messages=%s", messages)
         options = MODE_OPTIONS.get(context.mode, DEFAULT_OPTIONS)
+        logger.debug("ollama_stream_options %s", options)
         bound = chat_model.bind(model=model, **options)
         for part in bound.stream(messages):
             token = getattr(part, "content", "") or ""
@@ -62,8 +69,41 @@ def stream_turn(
                 logger=logger,
             )
             commit()
+            _schedule_lore_suggestions(context.story.id, context.text, buffer, model, logger)
         else:
             logger.debug("story_summary_skipped no_story_or_commit")
     except Exception as exc:
         logger.exception("ollama_stream_error")
         yield f"\n[Ollama error: {exc}]"
+
+
+def _schedule_lore_suggestions(
+    story_id: str | None,
+    user_input: str,
+    assistant_text: str,
+    model: str,
+    logger: LoggerProtocol,
+) -> None:
+    if not story_id:
+        return
+    if not user_input.strip() and not assistant_text.strip():
+        return
+
+    def _run() -> None:
+        db = SessionLocal()
+        try:
+            entries = db.query(LoreEntryModel).filter(LoreEntryModel.story_id == story_id).all()
+            llm = get_chat_model()
+            current_model = getattr(llm, "model", None)
+            if current_model and current_model != model and hasattr(llm, "model_copy"):
+                llm = llm.model_copy(update={"model": model})
+            suggestions = extract_suggestions(llm, model, entries, user_input, assistant_text)
+            created = save_suggestions(story_id, user_input, assistant_text, entries, suggestions, db)
+            logger.debug("lore_suggestions_created story_id=%s count=%d", story_id, created)
+        except Exception:
+            logger.exception("lore_suggestions_failed story_id=%s", story_id)
+        finally:
+            db.close()
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()

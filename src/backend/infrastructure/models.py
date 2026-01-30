@@ -49,6 +49,12 @@ class StoryModel(Base):
         cascade="all, delete-orphan",
         order_by="LoreEntryModel.created_at",
     )
+    lore_suggestions: Mapped[List["LoreSuggestionModel"]] = relationship(
+        "LoreSuggestionModel",
+        back_populates="story",
+        cascade="all, delete-orphan",
+        order_by="LoreSuggestionModel.created_at",
+    )
 
     @property
     def plot_summary(self) -> str:
@@ -113,3 +119,22 @@ class LoreEntryModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
 
     story: Mapped[StoryModel] = relationship("StoryModel", back_populates="lore_entries")
+
+
+class LoreSuggestionModel(Base):
+    __tablename__ = "lore_suggestions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+    kind: Mapped[str] = mapped_column(String, nullable=False)  # NEW | UPDATE
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending|accepted|rejected
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    tag: Mapped[str] = mapped_column(String, nullable=False, default="Character")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    triggers: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    target_lore_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    source_user: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source_assistant: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+
+    story: Mapped[StoryModel] = relationship("StoryModel", back_populates="lore_suggestions")

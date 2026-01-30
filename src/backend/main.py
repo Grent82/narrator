@@ -60,22 +60,6 @@ def _to_turn_payload(payload: TurnRequest) -> TurnPayload:
     )
 
 
-def _model_is_available(model: str) -> bool:
-    try:
-        client = get_ollama_client()
-        data = client.list()
-    except Exception:
-        logger.exception("ollama_list_failed")
-        return False
-    models = data.get("models", []) if isinstance(data, dict) else []
-    names = {str(item.get("name", "")) for item in models if isinstance(item, dict)}
-    if model in names:
-        return True
-    if ":" not in model:
-        return any(name.startswith(f"{model}:") for name in names)
-    return False
-
-
 @app.get("/health")
 def healthcheck():
     return {
@@ -93,11 +77,6 @@ def handle_turn_stream(
     chat_model=Depends(get_chat_model),
 ):
     try:
-        if not _model_is_available(OLLAMA_MODEL):
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Ollama model not available: {OLLAMA_MODEL}",
-            )
         repo = DbStoryRepository(db=db)
         lore_repo = DbLoreRepository(embeddings=get_embedding_model())
         stream = TURN_USE_CASE.run_stream(_to_turn_payload(payload), repo, lore_repo, chat_model)

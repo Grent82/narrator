@@ -20,6 +20,7 @@ from src.backend.application.vectorstores.lore_vectorstore import LoreVectorStor
 from src.backend.infrastructure.langchain_clients import get_embedding_model
 from src.backend.infrastructure.models import (
     LoreEntryModel,
+    LoreSuggestionModel,
     StoryMessageModel,
     StoryModel,
     StorySummaryModel,
@@ -63,6 +64,21 @@ def _story_to_out(story: StoryModel) -> StoryOut:
         tags=list(story.tags or []),
         messages=[msg.to_payload() for msg in (story.messages or [])],
         lore=[_lore_to_out(entry) for entry in story.lore_entries],
+        lore_review=[
+            {
+                "id": item.id,
+                "kind": item.kind,
+                "status": item.status,
+                "title": item.title,
+                "tag": item.tag,
+                "description": item.description or "",
+                "triggers": item.triggers or "",
+                "target_lore_id": item.target_lore_id,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in story.lore_suggestions
+            if item.status == "pending"
+        ],
     )
 
 
@@ -238,6 +254,98 @@ def sync_story_lore(story_id: str, db: Session = Depends(get_db)) -> None:
         texts.append(build_lore_text(entry.title, entry.tag, entry.triggers or "", entry.description or ""))
         metadatas.append(_lore_metadata(entry))
     store.add_texts(texts, metadatas=metadatas)
+
+
+@router.post("/{story_id}/lore/review/{suggestion_id}/accept", status_code=status.HTTP_204_NO_CONTENT)
+def accept_lore_suggestion(
+    story_id: str,
+    suggestion_id: str,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+) -> None:
+    story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
+    if not story:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    suggestion = (
+        db.query(LoreSuggestionModel)
+        .filter(
+            LoreSuggestionModel.id == suggestion_id,
+            LoreSuggestionModel.story_id == story_id,
+            LoreSuggestionModel.status == "pending",
+        )
+        .first()
+    )
+    if not suggestion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
+
+    entry_to_upsert = None
+    if suggestion.kind == "UPDATE" and suggestion.target_lore_id:
+        target = (
+            db.query(LoreEntryModel)
+            .filter(LoreEntryModel.story_id == story_id, LoreEntryModel.id == suggestion.target_lore_id)
+            .first()
+        )
+        if target:
+            if suggestion.description and suggestion.description not in (target.description or ""):
+                target.description = (target.description or "").rstrip() + "\n" + suggestion.description
+            if suggestion.triggers:
+                existing = {t.strip() for t in (target.triggers or "").split(",") if t.strip()}
+                incoming = {t.strip() for t in suggestion.triggers.split(",") if t.strip()}
+                target.triggers = ", ".join(sorted(existing.union(incoming)))
+            entry_to_upsert = target
+        else:
+            entry = LoreEntryModel(
+                title=suggestion.title,
+                description=suggestion.description or "",
+                tag=suggestion.tag,
+                triggers=suggestion.triggers or "",
+            )
+            story.lore_entries.append(entry)
+            entry_to_upsert = entry
+    else:
+        entry = LoreEntryModel(
+            title=suggestion.title,
+            description=suggestion.description or "",
+            tag=suggestion.tag,
+            triggers=suggestion.triggers or "",
+        )
+        story.lore_entries.append(entry)
+        entry_to_upsert = entry
+    suggestion.status = "accepted"
+    db.commit()
+    db.refresh(story)
+
+    if entry_to_upsert:
+        text = build_lore_text(
+            entry_to_upsert.title,
+            entry_to_upsert.tag,
+            entry_to_upsert.triggers or "",
+            entry_to_upsert.description or "",
+        )
+        _queue_vector(background_tasks, entry_to_upsert.id, story_id, text, _lore_metadata(entry_to_upsert))
+    return None
+
+
+@router.post("/{story_id}/lore/review/{suggestion_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
+def reject_lore_suggestion(
+    story_id: str,
+    suggestion_id: str,
+    db: Session = Depends(get_db),
+) -> None:
+    suggestion = (
+        db.query(LoreSuggestionModel)
+        .filter(
+            LoreSuggestionModel.id == suggestion_id,
+            LoreSuggestionModel.story_id == story_id,
+            LoreSuggestionModel.status == "pending",
+        )
+        .first()
+    )
+    if not suggestion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
+    suggestion.status = "rejected"
+    db.commit()
+    return None
 
 
 @router.put("/{story_id}", response_model=StoryOut)

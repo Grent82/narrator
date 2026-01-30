@@ -19,6 +19,18 @@ class LoreEntryOut(BaseModel):
     triggers: str = ""
 
 
+class LoreSuggestionOut(BaseModel):
+    id: str
+    kind: str
+    status: str
+    title: str
+    tag: str
+    description: str = ""
+    triggers: str = ""
+    target_lore_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
 class ChatMessage(BaseModel):
     role: str
     text: str = ""
@@ -60,6 +72,7 @@ class StoryUpdate(BaseModel):
 class StoryOut(StoryBase):
     id: str
     lore: List[LoreEntryOut] = Field(default_factory=list)
+    lore_review: List[LoreSuggestionOut] = Field(default_factory=list)
 
 
 class StorySummary(BaseModel):
