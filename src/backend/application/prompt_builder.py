@@ -26,9 +26,30 @@ def _lore_value(entry, key: str, logger: LoggerProtocol = None) -> str:
     return ""
 
 
-def _format_lore(entries: Iterable, logger: LoggerProtocol = None) -> str:
+def _should_skip_lore(entry, plot_essentials: str, logger: LoggerProtocol = None) -> bool:
+    tag = _lore_value(entry, "tag", logger=logger).strip().lower()
+    if tag in {"player", "player_character", "player character", "pc"}:
+        return True
+    essentials = (plot_essentials or "").strip().lower()
+    if not essentials:
+        return False
+    title = _lore_value(entry, "title", logger=logger).strip().lower()
+    if title and title in essentials:
+        return True
+    triggers = _lore_value(entry, "triggers", logger=logger).strip()
+    if triggers:
+        for raw in triggers.split(","):
+            token = raw.strip().lower()
+            if token and token in essentials:
+                return True
+    return False
+
+
+def _format_lore(entries: Iterable, plot_essentials: str, logger: LoggerProtocol = None) -> str:
     lines = []
     for entry in entries:
+        if _should_skip_lore(entry, plot_essentials, logger=logger):
+            continue
         title = _lore_value(entry, "title", logger=logger).strip()
         tag = _lore_value(entry, "tag", logger=logger).strip()
         description = _lore_value(entry, "description", logger=logger).strip()
@@ -67,7 +88,11 @@ def build_system_prompt(
     if plot_essentials:
         sections.append("[PLOT ESSENTIALS]\n" + plot_essentials)
 
-    lore_block = _format_lore(lore_entries if lore_entries is not None else story.lore_entries).strip()
+    lore_block = _format_lore(
+        lore_entries if lore_entries is not None else story.lore_entries,
+        plot_essentials,
+        logger=logger,
+    ).strip()
     if lore_block:
         sections.append("[LORE]\n" + lore_block)
 
