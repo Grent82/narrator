@@ -80,3 +80,36 @@ class StorySummary(BaseModel):
     title: str
     description: str = ""
     tags: List[str] = Field(default_factory=list)
+
+
+class StoryGenerateRequest(BaseModel):
+    ai_instruction_key: str
+    role: str
+    name: str
+    gender: str = ""
+    age: str = ""
+    traits: str
+    world_input: str
+    start_template: str = ""
+    start_custom: str = ""
+
+
+class StoryGenerateResponse(BaseModel):
+    title: str
+    description: str
+    plot_essentials: str
+    author_note: str = ""
+    tags: List[str] = Field(default_factory=list)
+    lore: List[LoreEntryIn] = Field(default_factory=list)
+
+
+class StoryGenerateJobResponse(BaseModel):
+    job_id: str
+    status: str
+
+
+class StoryGenerateJobStatus(BaseModel):
+    job_id: str
+    status: str
+    result: Optional[StoryGenerateResponse] = None
+    error: Optional[str] = None

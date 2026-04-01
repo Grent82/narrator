@@ -1,12 +1,18 @@
+import asyncio
 from typing import Callable, Dict, List
 from uuid import uuid4
 
 from nicegui import ui
+from nicegui.context import context
 
 from src.frontend.components.lore_grid import render_lore_grid
 from src.frontend.components.plot_fields import PLOT_FIELD_DEFS, plot_field
 from src.frontend.components.story_details_fields import parse_tags, story_details_fields
 from src.frontend.story_defaults import AI_INSTRUCTION_PRESETS, DEFAULT_AI_INSTRUCTION_KEY, get_ai_instructions
+from src.frontend.story_generator_options import (
+    ROLE_OPTIONS_BY_PRESET,
+    START_TEMPLATES,
+)
 from src.frontend.ui_constants import (
     DIALOG_ACTIONS,
     DIALOG_BODY,
@@ -16,6 +22,7 @@ from src.frontend.ui_constants import (
     DIALOG_TITLE,
     TEXT_MUTED,
 )
+from src.frontend.state import generate_story_draft, get_story_generate_job
 from src.shared.lore_tags import LORE_TAG_OPTIONS
 
 
@@ -35,9 +42,11 @@ def _story_dialog(
     initial_description: str,
     initial_tags: List[str],
     initial_lore_entries: List[Dict[str, str]],
+    show_generator: bool = False,
 ) -> ui.dialog:
     dialog = ui.dialog()
     lore_entries: List[Dict[str, str]] = [dict(entry) for entry in initial_lore_entries]
+    draft_state: Dict[str, object] = {}
 
     def next_lore_id() -> str:
         return str(uuid4())
@@ -53,11 +62,13 @@ def _story_dialog(
                 ui.label(dialog_title).classes(DIALOG_TITLE)
 
                 with ui.tabs().classes("w-full justify-center") as tabs:
+                    tab_generator = ui.tab("Generator") if show_generator else None
                     tab_plot = ui.tab("Plot")
                     tab_lore = ui.tab("Lore")
                     tab_details = ui.tab("Details")
 
-                with ui.tab_panels(tabs, value=tab_plot).classes(
+                start_tab = tab_generator or tab_plot
+                with ui.tab_panels(tabs, value=start_tab).classes(
                     "w-full flex-1 min-h-0 overflow-y-auto bg-slate-900/80 text-slate-100 backdrop-blur"
                 ):
                     with ui.tab_panel(tab_plot).classes("w-full q-pa-none"):
@@ -102,6 +113,115 @@ def _story_dialog(
                                 readonly=False,
                             )
 
+                    if show_generator and tab_generator is not None:
+                        with ui.tab_panel(tab_generator).classes("w-full q-pa-none"):
+                            with ui.column().classes("w-full items-center gap-4"):
+                                role_select = ui.select(ROLE_OPTIONS_BY_PRESET,label="Role", ).props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                                name_input = ui.input("Name").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                                gender_input = ui.input("Gender").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                                age_input = ui.input("Age").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                                traits_input = (
+                                    ui.textarea("Traits (start with 'You have ...')")
+                                    .props(f"autogrow {DIALOG_INPUT_PROPS}")
+                                    .classes(DIALOG_INPUT)
+                                )
+                                world_input = (
+                                    ui.textarea("World input")
+                                    .props(f"autogrow {DIALOG_INPUT_PROPS}")
+                                    .classes(DIALOG_INPUT)
+                                )
+                                start_template_select = ui.select(
+                                    START_TEMPLATES,
+                                    label="Start situation template",
+                                ).props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                                start_custom_input = (
+                                    ui.textarea("Start situation (custom)")
+                                    .props(f"autogrow {DIALOG_INPUT_PROPS}")
+                                    .classes(DIALOG_INPUT)
+                                )
+
+                                def update_role_options() -> None:
+                                    options = ROLE_OPTIONS_BY_PRESET
+                                    role_select.set_options(options)
+                                    if role_select.value not in options:
+                                        role_select.value = options[0] if options else None
+                                    role_select.update()
+
+                                async def handle_generate() -> None:
+                                    client = context.client
+
+                                    def safe_notify(message: str, *, type: str | None = None) -> None:
+                                        if not client.has_socket_connection:
+                                            return
+                                        options = {"message": message}
+                                        if type:
+                                            options["type"] = type
+                                        client.outbox.enqueue_message("notify", options, client.id)
+
+                                    if not (world_input.value or "").strip():
+                                        safe_notify("World input is required.", type="negative")
+                                        return
+                                    if not (name_input.value or "").strip():
+                                        safe_notify("Name is required.", type="negative")
+                                        return
+                                    if not (role_select.value or "").strip():
+                                        safe_notify("Role is required.", type="negative")
+                                        return
+                                    if not (traits_input.value or "").strip():
+                                        safe_notify("Traits are required (start with 'You have ...').", type="negative")
+                                        return
+                                    job = await asyncio.to_thread(
+                                        generate_story_draft,
+                                        ai_instruction_key=preset_select.value or DEFAULT_AI_INSTRUCTION_KEY,
+                                        role=str(role_select.value or ""),
+                                        name=str(name_input.value or ""),
+                                        gender=str(gender_input.value or ""),
+                                        age=str(age_input.value or ""),
+                                        traits=str(traits_input.value or ""),
+                                        world_input=str(world_input.value or ""),
+                                        start_template=str(start_template_select.value or ""),
+                                        start_custom=str(start_custom_input.value or ""),
+                                    )
+                                    if not job or not job.get("job_id"):
+                                        safe_notify("Story generation failed. Try again.", type="negative")
+                                        return
+                                    job_id = str(job.get("job_id", ""))
+                                    safe_notify("Generation started. Waiting for result...")
+                                    for _ in range(900):
+                                        if not client.has_socket_connection:
+                                            return
+                                        status = await asyncio.to_thread(get_story_generate_job, job_id)
+                                        if not status:
+                                            await asyncio.sleep(2)
+                                            continue
+                                        if status.get("status") == "error":
+                                            safe_notify(f"Generation failed: {status.get('error')}", type="negative")
+                                            return
+                                        if status.get("status") == "done" and status.get("result"):
+                                            draft = status.get("result") or {}
+                                            draft_state.clear()
+                                            draft_state.update(draft)
+                                            if not client.has_socket_connection:
+                                                return
+                                            title_input.value = draft.get("title", "") or ""
+                                            description_input.value = draft.get("description", "") or ""
+                                            plot_essentials_input.value = draft.get("plot_essentials", "") or ""
+                                            author_note_input.value = draft.get("author_note", "") or ""
+                                            tags_input.value = ", ".join(draft.get("tags", []) or [])
+                                            lore_entries[:] = list(draft.get("lore", []) or [])
+                                            title_input.update()
+                                            description_input.update()
+                                            plot_essentials_input.update()
+                                            author_note_input.update()
+                                            tags_input.update()
+                                            refresh_lore_grid()
+                                            safe_notify("Story generated.", type="positive")
+                                            return
+                                        await asyncio.sleep(2)
+                                    safe_notify("Generation still running. Please try again.", type="warning")
+
+                                ui.button("Generate", on_click=handle_generate).props("outline")
+
                     with ui.tab_panel(tab_lore).classes("w-full q-pa-none"):
                         with ui.column().classes("w-full items-center gap-4"):
                             lore_grid_container = ui.element("div").classes("w-full")
@@ -114,23 +234,31 @@ def _story_dialog(
                                 initial_tags,
                             )
 
-                with ui.row().classes(DIALOG_ACTIONS):
-                    ui.button(
-                        submit_label,
-                        on_click=lambda: (
-                            on_submit(
-                                title_input.value or "",
-                                preset_select.value or DEFAULT_AI_INSTRUCTION_KEY,
-                                ai_instructions_input.value or "",
-                                plot_essentials_input.value or "",
-                                author_note_input.value or "",
-                                description_input.value or "",
-                                parse_tags(tags_input.value or ""),
-                                list(lore_entries),
-                            ),
-                            dialog.close(),
-                        ),
+                def handle_submit() -> None:
+                    if show_generator and not draft_state:
+                        ui.notify("Generate a story first.", type="negative")
+                        return
+                    draft = draft_state if show_generator else {}
+                    title_value = title_input.value or draft.get("title", "")
+                    description_value = description_input.value or draft.get("description", "")
+                    plot_essentials_value = plot_essentials_input.value or draft.get("plot_essentials", "")
+                    author_note_value = author_note_input.value or draft.get("author_note", "")
+                    tags_value = tags_input.value or ", ".join(draft.get("tags", []) or [])
+                    lore_value = list(lore_entries) or list(draft.get("lore", []) or [])
+                    on_submit(
+                        title_value or "",
+                        preset_select.value or DEFAULT_AI_INSTRUCTION_KEY,
+                        ai_instructions_input.value or "",
+                        plot_essentials_value or "",
+                        author_note_value or "",
+                        description_value or "",
+                        parse_tags(tags_value or ""),
+                        lore_value,
                     )
+                    dialog.close()
+
+                with ui.row().classes(DIALOG_ACTIONS):
+                    ui.button(submit_label, on_click=handle_submit)
 
     def refresh_lore_grid() -> None:
         render_lore_grid(
@@ -278,6 +406,9 @@ def _story_dialog(
 
     preset_select.on("update:model-value", lambda e: apply_preset(preset_select.value))
     preset_select.on("change", lambda e: apply_preset(preset_select.value))
+    if show_generator:
+        preset_select.on("update:model-value", lambda e: update_role_options())
+        preset_select.on("change", lambda e: update_role_options())
 
     refresh_lore_grid()
     return dialog
@@ -297,6 +428,7 @@ def create_story_dialog(on_create: StorySubmit) -> ui.dialog:
         initial_description="",
         initial_tags=[],
         initial_lore_entries=[],
+        show_generator=True,
     )
 
 
@@ -314,7 +446,126 @@ def edit_story_dialog(story: Dict[str, object], on_save: StorySubmit) -> ui.dial
         initial_description=str(story.get("description", "")),
         initial_tags=list(story.get("tags", [])),
         initial_lore_entries=list(story.get("lore", [])),
+        show_generator=False,
     )
+
+
+def create_story_generate_dialog(on_submit: StorySubmit) -> ui.dialog:
+    dialog = ui.dialog()
+    draft_state: Dict[str, object] = {}
+
+    with dialog:
+        with ui.card().classes(DIALOG_CARD).style("width: 100%; max-width: 72rem; height: 85vh;"):
+            with ui.column().classes(f"{DIALOG_BODY} h-full"):
+                ui.label("Generate a new story").classes(DIALOG_TITLE)
+
+                with ui.row().classes("w-full flex-1 min-h-0 gap-4"):
+                    with ui.column().classes("w-1/2 min-h-0 gap-4"):
+                        preset_options = {key: value["label"] for key, value in AI_INSTRUCTION_PRESETS.items()}
+                        preset_select = ui.select(
+                            preset_options,
+                            value=DEFAULT_AI_INSTRUCTION_KEY,
+                            label="AI Instruction Preset",
+                        ).props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+
+                        role_select = ui.select( ROLE_OPTIONS_BY_PRESET, label="Role", ).props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                        name_input = ui.input("Name").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                        gender_input = ui.input("Gender").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                        age_input = ui.input("Age").props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                        traits_input = (
+                            ui.textarea("Traits (start with 'You have ...')")
+                            .props(f"autogrow {DIALOG_INPUT_PROPS}")
+                            .classes(DIALOG_INPUT)
+                        )
+                        world_input = (
+                            ui.textarea("World input")
+                            .props(f"autogrow {DIALOG_INPUT_PROPS}")
+                            .classes(DIALOG_INPUT)
+                        )
+                        start_template_select = ui.select( START_TEMPLATES, label="Start situation template",
+                        ).props(DIALOG_INPUT_PROPS).classes(DIALOG_INPUT)
+                        start_custom_input = (
+                            ui.textarea("Start situation (custom)")
+                            .props(f"autogrow {DIALOG_INPUT_PROPS}")
+                            .classes(DIALOG_INPUT)
+                        )
+
+                def update_role_options() -> None:
+                    options = ROLE_OPTIONS_BY_PRESET
+                    role_select.set_options(options)
+                    if role_select.value not in options:
+                        role_select.value = options[0] if options else None
+                    role_select.update()
+
+                async def handle_generate() -> None:
+                    client = context.client
+
+                    def safe_notify(message: str, *, type: str | None = None) -> None:
+                        if not client.has_socket_connection:
+                            return
+                        options = {"message": message}
+                        if type:
+                            options["type"] = type
+                        client.outbox.enqueue_message("notify", options, client.id)
+
+                    if not (world_input.value or "").strip():
+                        safe_notify("World input is required.", type="negative")
+                        return
+                    if not (name_input.value or "").strip():
+                        safe_notify("Name is required.", type="negative")
+                        return
+                    if not (role_select.value or "").strip():
+                        safe_notify("Role is required.", type="negative")
+                        return
+                    if not (traits_input.value or "").strip():
+                        safe_notify("Traits are required (start with 'You have ...').", type="negative")
+                        return
+                    job = await asyncio.to_thread(
+                        generate_story_draft,
+                        ai_instruction_key=preset_select.value or DEFAULT_AI_INSTRUCTION_KEY,
+                        role=str(role_select.value or ""),
+                        name=str(name_input.value or ""),
+                        gender=str(gender_input.value or ""),
+                        age=str(age_input.value or ""),
+                        traits=str(traits_input.value or ""),
+                        world_input=str(world_input.value or ""),
+                        start_template=str(start_template_select.value or ""),
+                        start_custom=str(start_custom_input.value or ""),
+                    )
+                    if not job or not job.get("job_id"):
+                        safe_notify("Story generation failed. Try again.", type="negative")
+                        return
+                    job_id = str(job.get("job_id", ""))
+                    safe_notify("Generation started. Waiting for result...")
+                    for _ in range(120):
+                        if not client.has_socket_connection:
+                            return
+                        status = await asyncio.to_thread(get_story_generate_job, job_id)
+                        if not status:
+                            await asyncio.sleep(2)
+                            continue
+                        if status.get("status") == "error":
+                            safe_notify(f"Generation failed: {status.get('error')}", type="negative")
+                            return
+                        if status.get("status") == "done" and status.get("result"):
+                            draft = status.get("result") or {}
+                            draft_state.clear()
+                            draft_state.update(draft)
+                            safe_notify("Story generated.", type="positive")
+                            return
+                        await asyncio.sleep(2)
+                    safe_notify("Generation still running. Please try again.", type="warning")
+
+                with ui.row().classes(DIALOG_ACTIONS):
+                    ui.button(
+                        "Generate",
+                        on_click=handle_generate,
+                    ).props("outline")
+                    
+
+    preset_select.on("update:model-value", lambda e: update_role_options())
+    preset_select.on("change", lambda e: update_role_options())
+    return dialog
 
 
 def confirm_delete_dialog(

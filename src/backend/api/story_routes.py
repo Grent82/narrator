@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from typing import List
 from uuid import uuid4
 
@@ -9,6 +10,10 @@ from sqlalchemy.orm import Session
 from src.backend.api.schemas import (
     LoreEntryIn,
     LoreEntryOut,
+    StoryGenerateJobResponse,
+    StoryGenerateJobStatus,
+    StoryGenerateRequest,
+    StoryGenerateResponse,
     StoryCreate,
     StoryOut,
     StorySummary,
@@ -17,7 +22,11 @@ from src.backend.api.schemas import (
 from src.backend.infrastructure.embeddings import build_lore_text
 from src.backend.infrastructure.db import get_db
 from src.backend.application.vectorstores.lore_vectorstore import LoreVectorStore
-from src.backend.infrastructure.langchain_clients import get_embedding_model
+from src.backend.infrastructure.langchain_clients import (
+    get_embedding_model,
+    get_story_generator_model,
+    get_story_generator_repair_model,
+)
 from src.backend.infrastructure.models import (
     LoreEntryModel,
     LoreSuggestionModel,
@@ -26,8 +35,41 @@ from src.backend.infrastructure.models import (
     StorySummaryModel,
 )
 from src.backend.application.summarizer import resolve_summary_prompt_key
+from src.backend.application.story_generator import GeneratedStory, generate_story_blueprint
+from src.backend.infrastructure.langchain_clients import get_chat_model
 
 router = APIRouter(prefix="/stories", tags=["stories"])
+
+_generator_jobs: dict[str, dict] = {}
+
+
+def _store_job(job_id: str, status: str, result: GeneratedStory | None = None, error: str | None = None) -> None:
+    _generator_jobs[job_id] = {
+        "status": status,
+        "result": result,
+        "error": error,
+    }
+
+
+def _job_to_response(job_id: str, job: dict) -> StoryGenerateJobStatus:
+    result = job.get("result")
+    if isinstance(result, GeneratedStory):
+        payload = StoryGenerateResponse(
+            title=result.title,
+            description=result.description,
+            plot_essentials=result.plot_essentials,
+            author_note=result.author_note,
+            tags=result.tags,
+            lore=result.lore,
+        )
+    else:
+        payload = None
+    return StoryGenerateJobStatus(
+        job_id=job_id,
+        status=str(job.get("status", "unknown")),
+        result=payload,
+        error=job.get("error"),
+    )
 
 
 def _lore_to_out(entry: LoreEntryModel) -> LoreEntryOut:
@@ -237,6 +279,37 @@ def get_story(
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
     return _story_to_out(story)
+
+
+@router.post("/generate", response_model=StoryGenerateJobResponse)
+def generate_story(
+    payload: StoryGenerateRequest,
+    chat_model=Depends(get_story_generator_model),
+    repair_model=Depends(get_story_generator_repair_model),
+) -> StoryGenerateResponse:
+    job_id = str(uuid4())
+    _store_job(job_id, "running")
+
+    def _run() -> None:
+        logger = logging.getLogger("backend")
+        try:
+            result = generate_story_blueprint(chat_model, payload, logger, repair_model=repair_model)
+            _store_job(job_id, "done", result=result)
+        except Exception as exc:
+            logger.exception("story_generator_failed job_id=%s", job_id)
+            _store_job(job_id, "error", error=str(exc))
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return StoryGenerateJobResponse(job_id=job_id, status="running")
+
+
+@router.get("/generate/{job_id}", response_model=StoryGenerateJobStatus)
+def get_generate_job(job_id: str) -> StoryGenerateJobStatus:
+    job = _generator_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return _job_to_response(job_id, job)
 
 
 @router.post("/{story_id}/lore/sync", status_code=status.HTTP_204_NO_CONTENT)

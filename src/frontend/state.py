@@ -20,10 +20,15 @@ _story_cache: Dict[str, Story] = {}
 _story_order: List[str] = []
 
 
-def _request(method: str, path: str, payload: dict | None = None) -> Optional[object]:
+def _request(
+    method: str,
+    path: str,
+    payload: dict | None = None,
+    timeout: float | None = None,
+) -> Optional[object]:
     url = f"{BACKEND_URL}{path}"
     try:
-        response = _client.request(method, url, json=payload)
+        response = _client.request(method, url, json=payload, timeout=timeout)
         response.raise_for_status()
         if response.status_code == 204:
             return None
@@ -117,6 +122,44 @@ def create_story(
         _ensure_messages(data)
         _story_cache[story_id] = data
     return story_id
+
+
+def generate_story_draft(
+    ai_instruction_key: str,
+    role: str,
+    name: str,
+    gender: str,
+    age: str,
+    traits: str,
+    world_input: str,
+    start_template: str,
+    start_custom: str,
+) -> Optional[Dict[str, object]]:
+    _logger.info("story_generate_request_start preset=%s role=%s name=%s", ai_instruction_key, role, name)
+    payload = {
+        "ai_instruction_key": ai_instruction_key,
+        "role": role,
+        "name": name,
+        "gender": gender,
+        "age": age,
+        "traits": traits,
+        "world_input": world_input,
+        "start_template": start_template,
+        "start_custom": start_custom,
+    }
+    data = _request("POST", "/stories/generate", payload, timeout=600.0)
+    if isinstance(data, dict):
+        _logger.info("story_generate_request_done job_id=%s", data.get("job_id"))
+        return data
+    _logger.warning("story_generate_request_failed")
+    return None
+
+
+def get_story_generate_job(job_id: str) -> Optional[Dict[str, object]]:
+    data = _request("GET", f"/stories/generate/{job_id}", None, timeout=60.0)
+    if isinstance(data, dict):
+        return data
+    return None
 
 
 def delete_story(story_id: str) -> None:
