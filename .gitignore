@@ -176,6 +176,7 @@ public/
 
 # Common directories to exclude
 node_modules/
+.pencil-cli/
 bower_components/
 target/
 dist/

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CLI="$ROOT/.pencil-cli/node_modules/.bin/pencil"
+
+if [ ! -x "$CLI" ]; then
+  echo "Pencil CLI is not installed in this project." >&2
+  echo "Install with: npm install --prefix ./.pencil-cli @pencil.dev/cli" >&2
+  exit 1
+fi
+
+exec "$CLI" "$@"

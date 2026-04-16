@@ -155,6 +155,7 @@ Wenn Checks nicht gelaufen sind, benenne das klar und nenne das Restrisiko.
 
 - Lokale Entwicklung kann direkt ueber Python-Module oder Docker Compose erfolgen.
 - `docker-compose.yml` ist der zentrale Einstiegspunkt fuer lokale Mehr-Service-Setups.
+- Das Pencil CLI ist projektlokal unter `./tools/pencil` gekapselt und sollte fuer CLI-basierte Pencil-Aufrufe bevorzugt werden.
 - Datenbankmigrationen und produktionsnahe Eingriffe nicht stillschweigend ausfuehren.
 - Branching und Delivery klein und pruefbar halten.
 
