@@ -1,6 +1,7 @@
 import { buildUrl, requestJson } from "./client";
 import type {
   ChatMessage,
+  LoreEntry,
   Story,
   StoryDraftPayload,
   StoryGenerateJobResponse,
@@ -67,6 +68,26 @@ export function acceptLoreSuggestion(storyId: string, suggestionId: string) {
 export function rejectLoreSuggestion(storyId: string, suggestionId: string) {
   return requestJson<void>(`/stories/${storyId}/lore/review/${suggestionId}/reject`, {
     method: "POST",
+  });
+}
+
+export function addLoreEntry(storyId: string, payload: Omit<LoreEntry, "id"> & { id?: string }) {
+  return requestJson<LoreEntry>(`/stories/${storyId}/lore`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function updateLoreEntry(storyId: string, entryId: string, payload: LoreEntry) {
+  return requestJson<LoreEntry>(`/stories/${storyId}/lore/${entryId}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export function deleteLoreEntry(storyId: string, entryId: string) {
+  return requestJson<void>(`/stories/${storyId}/lore/${entryId}`, {
+    method: "DELETE",
   });
 }
 

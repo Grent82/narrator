@@ -14,6 +14,7 @@ type StoryFormDialogProps = {
   open: boolean;
   title: string;
   story?: Story | null;
+  showGenerator?: boolean;
   onClose: () => void;
   onSubmit: (payload: StoryDraftPayload) => Promise<void>;
 };
@@ -106,7 +107,14 @@ async function pollGeneratedDraft(jobId: string) {
   throw new Error("Story generation timed out.");
 }
 
-export function StoryFormDialog({ open, title, story, onClose, onSubmit }: StoryFormDialogProps) {
+export function StoryFormDialog({
+  open,
+  title,
+  story,
+  showGenerator = false,
+  onClose,
+  onSubmit,
+}: StoryFormDialogProps) {
   const [state, setState] = useState<FormState>(() => toFormState(story));
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -216,63 +224,65 @@ export function StoryFormDialog({ open, title, story, onClose, onSubmit }: Story
         {error ? <p className="error-banner">{error}</p> : null}
 
         <div className="modal__body">
-          <section className="form-section">
-            <div className="form-section__header">
-              <div>
-                <p className="eyebrow">Generator</p>
-                <h3>Generate a draft</h3>
+          {showGenerator ? (
+            <section className="form-section">
+              <div className="form-section__header">
+                <div>
+                  <p className="eyebrow">Generator</p>
+                  <h3>Generate a draft</h3>
+                </div>
+                <button className="button button--primary" disabled={isGenerating} onClick={handleGenerate}>
+                  {isGenerating ? "Generating..." : "Generate"}
+                </button>
               </div>
-              <button className="button button--primary" disabled={isGenerating} onClick={handleGenerate}>
-                {isGenerating ? "Generating..." : "Generate"}
-              </button>
-            </div>
-            <div className="form-grid">
-              <label>
-                Role
-                <select value={generatorRole} onChange={(event) => setGeneratorRole(event.target.value)}>
-                  {ROLE_OPTIONS.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Name
-                <input value={generatorName} onChange={(event) => setGeneratorName(event.target.value)} />
-              </label>
-              <label>
-                Gender
-                <input value={generatorGender} onChange={(event) => setGeneratorGender(event.target.value)} />
-              </label>
-              <label>
-                Age
-                <input value={generatorAge} onChange={(event) => setGeneratorAge(event.target.value)} />
-              </label>
-              <label className="field-span-2">
-                Traits
-                <textarea value={generatorTraits} onChange={(event) => setGeneratorTraits(event.target.value)} rows={4} />
-              </label>
-              <label className="field-span-2">
-                World Input
-                <textarea value={generatorWorld} onChange={(event) => setGeneratorWorld(event.target.value)} rows={4} />
-              </label>
-              <label>
-                Start Template
-                <select value={generatorTemplate} onChange={(event) => setGeneratorTemplate(event.target.value)}>
-                  {START_TEMPLATES.map((template) => (
-                    <option key={template} value={template}>
-                      {template}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Custom Start
-                <textarea value={generatorCustomStart} onChange={(event) => setGeneratorCustomStart(event.target.value)} rows={4} />
-              </label>
-            </div>
-          </section>
+              <div className="form-grid">
+                <label>
+                  Role
+                  <select value={generatorRole} onChange={(event) => setGeneratorRole(event.target.value)}>
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Name
+                  <input value={generatorName} onChange={(event) => setGeneratorName(event.target.value)} />
+                </label>
+                <label>
+                  Gender
+                  <input value={generatorGender} onChange={(event) => setGeneratorGender(event.target.value)} />
+                </label>
+                <label>
+                  Age
+                  <input value={generatorAge} onChange={(event) => setGeneratorAge(event.target.value)} />
+                </label>
+                <label className="field-span-2">
+                  Traits
+                  <textarea value={generatorTraits} onChange={(event) => setGeneratorTraits(event.target.value)} rows={4} />
+                </label>
+                <label className="field-span-2">
+                  World Input
+                  <textarea value={generatorWorld} onChange={(event) => setGeneratorWorld(event.target.value)} rows={4} />
+                </label>
+                <label>
+                  Start Template
+                  <select value={generatorTemplate} onChange={(event) => setGeneratorTemplate(event.target.value)}>
+                    {START_TEMPLATES.map((template) => (
+                      <option key={template} value={template}>
+                        {template}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Custom Start
+                  <textarea value={generatorCustomStart} onChange={(event) => setGeneratorCustomStart(event.target.value)} rows={4} />
+                </label>
+              </div>
+            </section>
+          ) : null}
 
           <section className="form-section">
             <div className="form-grid">

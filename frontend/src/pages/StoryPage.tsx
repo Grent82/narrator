@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   acceptLoreSuggestion,
+  addLoreEntry,
+  deleteLoreEntry,
   getStory,
   rejectLoreSuggestion,
   syncStoryLore,
   streamTurn,
+  updateLoreEntry,
   updateStory,
 } from "../api/stories";
 import type { ChatMessage, Story } from "../api/types";
 import { ChatTranscript } from "../components/ChatTranscript";
-import { StoryFormDialog } from "../components/StoryFormDialog";
 import { StorySidebar } from "../components/StorySidebar";
 
 type TurnMode = "story" | "say" | "do" | "continue";
@@ -30,7 +32,11 @@ export function StoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [command, setCommand] = useState("");
   const [mode, setMode] = useState<TurnMode>("story");
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isInputOpen, setIsInputOpen] = useState(false);
+
+  const modePlaceholder =
+    mode === "do" ? "What do you do?" : mode === "say" ? "What do you say?" : "What happens next?";
 
   const applyStory = (updater: (current: Story) => Story) => {
     setStory((current) => {
@@ -119,6 +125,7 @@ export function StoryPage() {
       await persistMessages(messages);
     } finally {
       setIsStreaming(false);
+      setIsInputOpen(false);
     }
   };
 
@@ -236,8 +243,8 @@ export function StoryPage() {
           <button className="button button--ghost" onClick={() => navigate("/")}>
             Back
           </button>
-          <button className="button button--primary" onClick={() => setIsEditOpen(true)}>
-            Edit Story
+          <button className="button button--primary" onClick={() => setIsPanelOpen(true)}>
+            Story Panel
           </button>
         </div>
       </section>
@@ -249,66 +256,103 @@ export function StoryPage() {
           <ChatTranscript messages={story.messages} />
 
           <section className="panel controls">
-            <div className="button-row">
-              <button className="button button--ghost" onClick={handleContinue} disabled={isStreaming}>
-                Continue
-              </button>
-              <button className="button button--ghost" onClick={() => void handleRetry()} disabled={isStreaming}>
-                Retry
-              </button>
-              <button className="button button--ghost" onClick={() => void handleErase()} disabled={isStreaming || isSaving}>
-                Erase
-              </button>
-            </div>
+            {!isInputOpen ? (
+              <div className="button-row">
+                <button className="button button--ghost" onClick={() => setIsInputOpen(true)} disabled={isStreaming}>
+                  Take a Turn
+                </button>
+                <button className="button button--ghost" onClick={handleContinue} disabled={isStreaming}>
+                  Continue
+                </button>
+                <button className="button button--ghost" onClick={() => void handleRetry()} disabled={isStreaming}>
+                  Retry
+                </button>
+                <button className="button button--ghost" onClick={() => void handleErase()} disabled={isStreaming || isSaving}>
+                  Erase
+                </button>
+              </div>
+            ) : (
+              <div className="turn-composer">
+                <div className="turn-composer__toolbar">
+                  <div className="turn-tabs" role="tablist" aria-label="Turn mode">
+                    <button
+                      className={mode === "do" ? "tab-button tab-button--active" : "tab-button"}
+                      onClick={() => setMode("do")}
+                    >
+                      Do
+                    </button>
+                    <button
+                      className={mode === "say" ? "tab-button tab-button--active" : "tab-button"}
+                      onClick={() => setMode("say")}
+                    >
+                      Say
+                    </button>
+                    <button
+                      className={mode === "story" ? "tab-button tab-button--active" : "tab-button"}
+                      onClick={() => setMode("story")}
+                    >
+                      Story
+                    </button>
+                  </div>
+                  <button className="button button--ghost" onClick={() => setIsInputOpen(false)} disabled={isStreaming}>
+                    ✕
+                  </button>
+                </div>
 
-            <label>
-              Turn Mode
-              <select value={mode} onChange={(event) => setMode(event.target.value as TurnMode)}>
-                <option value="story">Story</option>
-                <option value="say">Say</option>
-                <option value="do">Do</option>
-              </select>
-            </label>
+                <label>
+                  Input
+                  <textarea
+                    rows={4}
+                    value={command}
+                    onChange={(event) => setCommand(event.target.value)}
+                    placeholder={modePlaceholder}
+                  />
+                </label>
 
-            <label>
-              Input
-              <textarea
-                rows={4}
-                value={command}
-                onChange={(event) => setCommand(event.target.value)}
-                placeholder="Describe what happens next."
-              />
-            </label>
-
-            <div className="button-row">
-              <button
-                className="button button--primary"
-                onClick={() => void handleSendTurn(command.trim(), mode, true)}
-                disabled={isStreaming || !command.trim()}
-              >
-                {isStreaming ? "Streaming..." : "Take a Turn"}
-              </button>
-            </div>
+                <div className="button-row">
+                  <button
+                    className="button button--primary"
+                    onClick={() => void handleSendTurn(command.trim(), mode, true)}
+                    disabled={isStreaming || !command.trim()}
+                  >
+                    {isStreaming ? "Streaming..." : "Send"}
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
-
-        <StorySidebar
-          story={story}
-          onAcceptSuggestion={(suggestionId) => void refreshStory(() => acceptLoreSuggestion(story.id, suggestionId))}
-          onRejectSuggestion={(suggestionId) => void refreshStory(() => rejectLoreSuggestion(story.id, suggestionId))}
-        />
       </section>
 
-      <StoryFormDialog
-        open={isEditOpen}
-        title="Edit Story"
+      <StorySidebar
+        open={isPanelOpen}
         story={story}
-        onClose={() => setIsEditOpen(false)}
-        onSubmit={async (payload) => {
-          await updateStory(story.id, payload);
-          setIsEditOpen(false);
-          await loadStory();
-        }}
+        onClose={() => setIsPanelOpen(false)}
+        onSavePlot={(fields) => refreshStory(async () => {
+          await updateStory(story.id, fields);
+        })}
+        onSaveDetails={(fields) => refreshStory(async () => {
+          await updateStory(story.id, fields);
+        })}
+        onAddLore={(entry) => refreshStory(async () => {
+          await addLoreEntry(story.id, entry);
+        })}
+        onUpdateLore={(entry) => refreshStory(async () => {
+          await updateLoreEntry(story.id, entry.id, entry);
+        })}
+        onDeleteLore={(entryId) => refreshStory(() => deleteLoreEntry(story.id, entryId))}
+        onDuplicateLore={(entry) =>
+          refreshStory(async () => {
+            await addLoreEntry(story.id, {
+              title: entry.title,
+              description: entry.description,
+              tag: entry.tag,
+              triggers: entry.triggers,
+            });
+          })
+        }
+        onAcceptSuggestion={(suggestionId) => void refreshStory(() => acceptLoreSuggestion(story.id, suggestionId))}
+        onRejectSuggestion={(suggestionId) => void refreshStory(() => rejectLoreSuggestion(story.id, suggestionId))}
       />
     </main>
   );

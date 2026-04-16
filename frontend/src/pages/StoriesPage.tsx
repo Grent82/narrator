@@ -102,6 +102,7 @@ export function StoriesPage() {
       <StoryFormDialog
         open={isCreateOpen}
         title="Create Story"
+        showGenerator={true}
         onClose={() => setIsCreateOpen(false)}
         onSubmit={handleCreate}
       />
@@ -110,6 +111,7 @@ export function StoriesPage() {
         open={editingStory !== null}
         title="Edit Story"
         story={editingStory}
+        showGenerator={false}
         onClose={() => setEditingStory(null)}
         onSubmit={handleEdit}
       />

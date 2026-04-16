@@ -175,10 +175,7 @@ p {
 }
 
 .story-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 2.1fr) minmax(320px, 1fr);
-  gap: 1rem;
-  align-items: start;
+  display: block;
 }
 
 .story-main,
@@ -210,9 +207,48 @@ p {
   padding: 1.25rem;
 }
 
+.turn-composer {
+  display: grid;
+  gap: 1rem;
+}
+
+.turn-composer__toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.turn-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .sidebar-list {
   display: grid;
   gap: 0.75rem;
+}
+
+.lore-add-card {
+  display: grid;
+  gap: 0.4rem;
+  width: 100%;
+  border: 1px dashed rgba(215, 158, 101, 0.45);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  background: rgba(81, 48, 24, 0.18);
+  color: #f0cfaa;
+  text-align: left;
+}
+
+.lore-add-card__icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.lore-add-card__text {
+  font-size: 0.95rem;
 }
 
 .sidebar-card {
@@ -233,8 +269,71 @@ p {
   align-items: flex-start;
 }
 
-.story-sidebar > .panel {
-  padding: 1.2rem;
+.story-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(34rem, calc(100vw - 1.25rem));
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(104%);
+  transition: transform 180ms ease;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.story-drawer--open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.story-drawer__header,
+.story-drawer__section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.story-drawer__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.tab-button {
+  border: 1px solid rgba(218, 188, 154, 0.18);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5ede3;
+}
+
+.tab-button--active {
+  background: rgba(215, 158, 101, 0.2);
+  border-color: rgba(215, 158, 101, 0.5);
+}
+
+.story-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 1rem;
+}
+
+.panel--inner {
+  padding: 1rem;
+}
+
+.drawer-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.modal--narrow {
+  width: min(720px, 100%);
 }
 
 .modal-backdrop {
