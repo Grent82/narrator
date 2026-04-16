@@ -2,56 +2,113 @@
 AKTUELLER UMFANG (IMPLEMENTIERT, IST-STAND)
 ================================================================
 
-1) Kernfunktionalitat
+1) Kernfunktionalitaet
 - Ein zentraler Storyteller-LLM generiert die Narration.
-- Eingabemodi: Say / Do / Story / Continue (MODE-Block im Prompt).
+- Eingabemodi: Say / Do / Story / Continue.
 - NiceGUI Frontend mit Chat-Log, Story-Steuerung und Side Panel.
-- Lore-Verwaltung mit Karten (Create/Edit/Duplicate/Delete).
-- Lore Review (Vorschlage) im Story-Header (Accept/Reject).
+- Lore-Verwaltung mit Karten und Review-Flow fuer Vorschlaege.
+- Story-Generierung fuer neue Geschichten.
 
 2) Architektur (heutiger Stand)
-- FastAPI Backend mit /turn/stream.
-- Use-Case Layer (TurnUseCase) fur Turn-Logik (stream).
-- Repositories fur Story-, Lore- und Message-Zugriff.
-- LLM Anbindung via LangChain (ChatModel) + Ollama.
+- FastAPI Backend mit Streaming-Endpunkt `/turn/stream`.
+- Geschichtete Struktur mit `api`, `application`, `infrastructure`, `frontend`.
+- Turn-Logik ueber `TurnUseCase` und `turn_service`.
+- LLM-Anbindung via LangChain Community + Ollama.
 
 3) Datenhaltung
 - PostgreSQL als Primary DB.
-- Tabellen: stories, story_messages, story_summaries, lore_entries, lore_suggestions.
-- story_messages speichert Chat-Verlauf mit position fur stabile Reihenfolge.
-- story_summaries speichert Summary + last_position.
+- Tabellen: `stories`, `story_messages`, `story_summaries`, `lore_entries`, `lore_suggestions`.
+- `story_messages` speichert Chat-Verlauf mit `position` fuer stabile Reihenfolge.
+- `story_summaries` speichert Summary und `last_position` fuer inkrementelle Updates.
 
 4) Lore + Vektor-Suche
-- Qdrant als Vector Store fur Lore Retrieval.
-- Embeddings via LangChain OllamaEmbeddings.
-- Lore Embeddings werden in Qdrant gespeichert (nicht in lore_entries).
-- Lore Retrieval nutzt Top-K aus Qdrant.
+- Qdrant als produktiver Vector Store fuer Lore Retrieval.
+- Embeddings via `OllamaEmbeddings`.
+- Lore-Embeddings liegen in Qdrant
 
-5) Summary
-- Inkrementelle Summary pro Turn (update_story_summary).
-- Summary wird in story_summaries gespeichert.
-- last_position wird fur inkrementelles Fortschreiben genutzt.
+1) Frontend/Backend-Kommunikation
+- Klassische JSON-Requests fuer CRUD-Flows.
+- Streaming fuer Story-Turns via HTTP-Stream.
 
 ================================================================
-PLANNED / OFFEN (ROADMAP)
+TECH STACK
 ================================================================
 
-1) Persistenz der Messages im Frontend
-- Sicherstellen, dass alle Chat-Nachrichten nach jedem Turn in story_messages persistiert werden.
-- Recompute Summary, wenn Messages geloescht/retired werden (Erase/Retry).
+- Python
+- FastAPI
+- Pydantic v2
+- SQLAlchemy 2.x
+- Alembic
+- NiceGUI
+- PostgreSQL
+- Qdrant
+- Ollama
+- LangChain Community
+- Docker Compose
 
-2) Welt- und NPC-Modelle
-- UI/Struktur fur Characters, Places, Races (LLM-Descriptions).
-- Persistente Datenmodelle fur diese Entitaten.
+================================================================
+OFFENE TECHNISCHE LUECKEN
+================================================================
 
-3) Summary-Gating
-- Optionaler LLM-Check, ob Summary-Update notwendig ist.
-- Heuristiken (z.B. minimale Textlaenge).
+P0
+- Tooling-Konfiguration in `pyproject.toml` fehlte bisher.
+- Doku und Abhaengigkeiten muessen auf den realen Code-Stand konsolidiert werden.
 
-4) Erweiterte Simulation (optional)
-- Multi-LLM Rollen.
-- Event-Bus / Background-Simulation.
-- Scheduler und Welt-Ticks.
+P1
+- Message-Persistenz und Summary-Konsistenz fuer Edit-/Retry-/Erase-Flows absichern.
+- Lore-/Qdrant-Synchronitaet haerter absichern.
+- Typisierung im Frontend-State verbessern.
+
+P2
+- Characters / Places / Races als persistente Weltmodelle einfuehren.
+- Quest-System als eigener Fachbereich.
+
+P3
+- Bewusste Entscheidung, ob Redis/Jobs/Eventing ueberhaupt gebraucht werden.
+- Spaetere Bewertung, ob LangChain fuer den schmalen Einsatz noch gerechtfertigt ist.
+
+================================================================
+DEPENDENCIES
+================================================================
+
+- fastapi
+- pydantic
+- sqlalchemy
+- alembic
+- nicegui
+- httpx
+- ollama
+- langchain-core
+- langchain-community
+- qdrant-client
+- psycopg2-binary
+- python-dotenv
+- uvicorn
+
+================================================================
+ROADMAP (NAECHSTE SCHRITTE)
+================================================================
+
+1) Repo konsolidieren
+- Doku korrigieren
+- Tooling konfigurieren
+- Abhaengigkeiten auditieren
+
+1) Qualitaet absichern
+- erste Tests fuer TurnUseCase, Prompt-Building und Summary-Flow
+- Linting/Formatierung verbindlich machen
+
+1) Funktionale Erweiterungen
+- Chat-Historie dauerhaft und robust editierbar machen
+- Weltmodelle fuer Characters, Places und Races aufbauen
+- Quest-System schrittweise einfuehren
+
+================================================================
+BRAINSTORMING (IDEEN)
+================================================================
+
+- Chat-Historie immer sichtbar.
+- Ubersicht fur Charaktere/Orte/Rassen inkl. LLM-relevanter Infos.
 
 ================================================================
 TODO: QUEST-SYSTEM (DETAILLIERT)
@@ -127,42 +184,3 @@ F) UI (optional, aber sinnvoll)
 G) Tests
 - Unit Tests fur JSON-Parser
 - Integration Test fur Quest-Lifecycle (new -> open -> completed)
-
-================================================================
-TECH STACK (AKTUELL)
-================================================================
-
-- Backend: FastAPI (Python)
-- LLM: Ollama (lokal) + LangChain Wrapper
-- DB: PostgreSQL
-- Vector Store: Qdrant
-- Frontend: NiceGUI
-- Docker/Docker-Compose fur lokales Setup
-
-================================================================
-BRAINSTORMING (IDEEN)
-================================================================
-
-- Chat-Historie immer sichtbar.
-- Ubersicht fur Charaktere/Orte/Rassen inkl. LLM-relevanter Infos.
-
-================================================================
-PRIORISIERUNG (NAECHSTE SCHRITTE)
-================================================================
-
-P0 (MUSS, stabile Sessions)
-- Chat-Messages zuverlaessig persistieren (kein Kontextverlust).
-- Summary-Recompute konsistent bei Erase/Retry.
-- Embedding/Lore-Flow stabilisieren (Qdrant sync + fehlende Embeddings).
-
-P1 (HOCH, aber nicht blockierend)
-- Lore Review Edit-Flow verdrahten.
-- UI-Consistency/UX Fixes (Dialoge, Mode-Input, Buttons).
-
-P2 (MITTEL)
-- Quest-System (minimaler Start).
-- Summary-Gating (Heuristiken oder LLM-Check).
-
-P3 (SPAETER / OPTIONAL)
-- NPC/World-Modelle.
-- Multi-LLM Rollen, Scheduler, Event-Bus.
