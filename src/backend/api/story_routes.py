@@ -41,6 +41,12 @@ from src.backend.infrastructure.langchain_clients import get_chat_model
 router = APIRouter(prefix="/stories", tags=["stories"])
 
 _generator_jobs: dict[str, dict] = {}
+_TRANSIENT_ASSISTANT_PREFIXES = (
+    "[Ollama error:",
+    "[Ollama warning:",
+    "Backend error:",
+    "Unexpected error:",
+)
 
 
 def _store_job(job_id: str, status: str, result: GeneratedStory | None = None, error: str | None = None) -> None:
@@ -211,9 +217,27 @@ def _ensure_summary(story: StoryModel, summary: str | None = None) -> StorySumma
     return story.summary_record
 
 
+def _normalize_persisted_messages(messages: List) -> List[dict]:
+    normalized: List[dict] = []
+    for msg in messages:
+        role = str(_message_value(msg, "role", "")).strip()
+        text = str(_message_value(msg, "text", "") or "")
+        stripped_text = text.strip()
+        if role == "assistant" and any(stripped_text.startswith(prefix) for prefix in _TRANSIENT_ASSISTANT_PREFIXES):
+            continue
+
+        payload = {"role": role, "text": text}
+        mode = _message_value(msg, "mode", None)
+        if mode:
+            payload["mode"] = mode
+        normalized.append(payload)
+    return normalized
+
+
 def _apply_messages(story: StoryModel, messages: List) -> None:
+    normalized_messages = _normalize_persisted_messages(messages)
     story.messages.clear()
-    for position, msg in enumerate(messages):
+    for position, msg in enumerate(normalized_messages):
         story.messages.append(
             StoryMessageModel(
                 role=str(_message_value(msg, "role", "")).strip(),
@@ -223,7 +247,7 @@ def _apply_messages(story: StoryModel, messages: List) -> None:
             )
         )
     summary_record = _ensure_summary(story)
-    summary_record.last_position = len(messages) - 1 if messages else -1
+    summary_record.last_position = len(normalized_messages) - 1 if normalized_messages else -1
 
 
 @router.get("", response_model=List[StorySummary])

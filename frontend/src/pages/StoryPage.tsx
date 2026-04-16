@@ -21,6 +21,22 @@ function cloneMessages(messages: ChatMessage[]) {
   return messages.map((message) => ({ ...message }));
 }
 
+function sanitizeMessagesForPersistence(messages: ChatMessage[]) {
+  return messages.filter((message) => {
+    if (message.role !== "assistant") {
+      return true;
+    }
+
+    const text = message.text.trim();
+    return !(
+      text.startsWith("[Ollama error:") ||
+      text.startsWith("[Ollama warning:") ||
+      text.startsWith("Backend error:") ||
+      text.startsWith("Unexpected error:")
+    );
+  });
+}
+
 export function StoryPage() {
   const { storyId } = useParams();
   const navigate = useNavigate();
@@ -78,7 +94,7 @@ export function StoryPage() {
     if (!storyId) {
       return;
     }
-    await updateStory(storyId, { messages });
+    await updateStory(storyId, { messages: sanitizeMessagesForPersistence(messages) });
   };
 
   const handleSendTurn = async (text: string, currentMode: TurnMode, showUser: boolean) => {
