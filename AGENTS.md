@@ -58,6 +58,8 @@ Wenn Anforderungen, Akzeptanzkriterien oder Architektur unklar oder widerspruech
 - Diffs klein, nachvollziehbar und rueckverfolgbar halten.
 - Wenn Implementierung, Projektbeschreibung und Code voneinander abweichen, die Abweichung explizit benennen.
 
+Methodische Leitplanken koennen zusaetzlich ueber `.claude/rules/` konkretisiert werden. Diese Rules ergaenzen die Rollenarbeit, ersetzen aber weder fachliches Urteil noch projektspezifische Analyse.
+
 ---
 
 ## Architekturregeln
@@ -151,10 +153,22 @@ Nutze die spezialisierten Agents passend:
   - fuer unklare, fehlende oder widerspruechliche Anforderungen
 - `architect`
   - fuer Architektur, API-Design, Datenmodell, Integrationsgrenzen und technische Entscheidungen
+- `investigator`
+  - fuer Root-Cause-Analyse, Befundsammlung und Trennung zwischen Symptom und Ursache
 - `developer`
-  - fuer Implementierung, Refactoring und Bugfixing
+  - fuer Implementierung und Refactoring
+- `fixer`
+  - fuer gezielte, minimal-invasive Bugfixes bei verstandener Ursache
+- `test-writer`
+  - fuer neue oder angepasste automatisierte Tests
 - `tester`
   - fuer Teststrategie, Testfaelle, QA und Verifikation
+- `code-reviewer`
+  - fuer Risiko- und Qualitaetsreviews mit Fokus auf Regressionen, Architektur und A11y
+- `technical-writer`
+  - fuer technische Dokumentation, Runbooks und Handovers
+- `devops`
+  - fuer lokale Umgebung, Docker Compose, Konfiguration, Migrationen und Betriebsfragen
 
 Rollen sollen ihre Verantwortung nicht stillschweigend ueberschreiten.
 

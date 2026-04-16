@@ -11,4 +11,5 @@ pytest==9.0.2
 qdrant-client==1.16.2
 ruff==0.14.13
 SQLAlchemy==2.0.46
+tomli==2.3.0
 uvicorn==0.40.0

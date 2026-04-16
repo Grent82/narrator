@@ -4,6 +4,50 @@
     "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
     "OTEL_METRICS_EXPORTER": "otlp"
   },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./.claude/hooks/pre-command/check-sensitive-path.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./.claude/hooks/pre-command/check-sensitive-path.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c \"./.claude/hooks/post-command/validate-python.sh 2>/dev/null || true\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c \"./.claude/hooks/on-error/capture-diagnostics.sh 2>/dev/null || true\""
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(python:*)",
@@ -20,7 +64,9 @@
       "Bash(rg:*)",
       "Bash(grep:*)",
       "Bash(sed:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(jq:*)",
+      "Bash(bash:*)"
     ],
     "deny": []
   },

@@ -108,13 +108,20 @@ Spezialisierte Sub-Agenten in `.claude/agents/`:
 |---|---|
 | `requirements-engineer` | Anforderungen fehlen, sind unklar oder widerspruechlich |
 | `architect` | Architektur, API-Design, Datenmodell, Integrationsgrenzen |
+| `investigator` | Root-Cause-Analyse, Befundsammlung, Analyse unklarer Fehlerbilder |
 | `developer` | Features implementieren, Bugs fixen, Refactorings |
+| `fixer` | Minimal-invasive Bugfixes bei bereits verstandener Ursache |
+| `test-writer` | Automatisierte Tests schreiben oder anpassen |
 | `tester` | Tests, QA, Reproduktion und Verifikation |
 | `code-reviewer` | Review von Risiken, Regressionen, Wartbarkeit und A11y |
+| `technical-writer` | Technische Doku, Runbooks und Handovers pflegen |
 | `devops` | Docker Compose, lokale Services, `.env`, Ports, Migrationen, Betriebsfragen |
 
 Typischer Workflow:
-`requirements-engineer` -> `architect` -> `developer` -> `tester` -> `code-reviewer`
+`requirements-engineer` -> `architect` -> `developer` -> `test-writer` -> `tester` -> `code-reviewer`
+
+Fuer Bugs:
+`investigator` -> `fixer` -> `test-writer` -> `tester`
 
 ---
 
@@ -127,6 +134,8 @@ Spezialisierte Skill-Anweisungen in `.claude/skills/`:
 | `accessibility` | A11y fuer NiceGUI-Seiten und Web-Interaktionen |
 | `api-endpoint` | FastAPI-Endpunkte, Pydantic-Schemas, Streaming, Validierung |
 | `frontend-components` | Wiederverwendbare NiceGUI-Komponenten und Seitenstruktur |
+
+Ergaenzende methodische Leitplanken liegen unter `.claude/rules/`, z. B. fuer Clean Code, Architektur, Git-Sicherheit, Security und risikobasiertes Testing.
 
 ---
 
