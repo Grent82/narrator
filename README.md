@@ -1,11 +1,11 @@
 # Narrator
 
-Narrator ist ein lokales Storytelling-System fuer interaktive, KI-gestuetzte Text-Adventures. Der aktuelle Stand setzt auf ein Python-only Setup mit FastAPI im Backend, NiceGUI im Frontend, PostgreSQL fuer Persistenz, Qdrant fuer Lore-Retrieval und Ollama fuer lokale Modelle.
+Narrator ist ein lokales Storytelling-System fuer interaktive, KI-gestuetzte Text-Adventures. Der aktuelle Stand setzt auf FastAPI im Backend, ein separates Vite/React/TypeScript-Frontend, PostgreSQL fuer Persistenz, Qdrant fuer Lore-Retrieval und Ollama fuer lokale Modelle.
 
 ## Aktueller Techstack
 
 - Backend: FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic
-- Frontend: NiceGUI
+- Frontend: Vite, React, TypeScript
 - LLM: Ollama, angebunden ueber LangChain Community
 - Persistenz: PostgreSQL
 - Vektor-Suche: Qdrant
@@ -19,16 +19,13 @@ src/
     api/              HTTP-Endpunkte und API-Schemas
     application/      Use Cases, Prompting, Summary, Retrieval
     infrastructure/   DB, ORM-Modelle, Ollama/LangChain-Clients
-  frontend/
-    components/       Wiederverwendbare NiceGUI-Bausteine
-    pages/            Seiten
-    services/         Backend-Zugriffe und Streaming
   shared/             Gemeinsame Utilities
+frontend/             Vite App (React + TypeScript)
 alembic/              Migrationen
 tools/                Hilfsskripte
 ```
 
-Hinweis: Aeltere Doku-Teile im Projekt beschrieben eine staerker ausdifferenzierte Clean-Architecture-Struktur mit `domain/`, CLI-Frontend, Redis-Event-Bus, FAISS und pgvector. Das entspricht nicht dem aktuellen Code-Stand.
+Hinweis: Aeltere Doku-Teile im Projekt beschrieben eine staerker ausdifferenzierte Clean-Architecture-Struktur mit `domain/`, CLI-Frontend, Redis-Event-Bus, FAISS und pgvector. Das entspricht nicht dem aktuellen Code-Stand. Das fruehere NiceGUI-Frontend liegt noch im Repository, ist aber nicht mehr der aktive Laufzeitpfad.
 
 ## Lokaler Start
 
@@ -44,13 +41,22 @@ Danach sind typischerweise erreichbar:
 - Ollama: `http://localhost:11435`
 - Qdrant: `http://localhost:16333`
 
+Lokaler Frontend-Start ohne Docker:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 ## Wichtige Umgebungsvariablen
 
 ### Backend / Frontend
 
 - `BACKEND_HOST` / `BACKEND_PORT`
-- `FRONTEND_HOST` / `FRONTEND_PORT`
-- `BACKEND_URL`
+- `FRONTEND_ORIGINS`
+- `VITE_API_BASE_URL` (optional for direct browser-to-backend access)
+- `VITE_BACKEND_PROXY_TARGET` (for local/Compose dev via Vite proxy)
 
 ### Datenbank
 
@@ -81,10 +87,8 @@ Danach sind typischerweise erreichbar:
 ### Logging
 
 - `BACKEND_LOG_FILE`
-- `FRONTEND_LOG_FILE`
 - `LOG_LEVEL`
 - `BACKEND_LOG_LEVEL`
-- `FRONTEND_LOG_LEVEL`
 
 ## Aktueller funktionaler Umfang
 
@@ -94,4 +98,4 @@ Danach sind typischerweise erreichbar:
 - Lore-Retrieval ueber Qdrant
 - Lore-Suggestions aus Story-Turns
 - Story-Generierung fuer neue Geschichten
-
+- Browser-Frontend als getrennte Vite-App mit eigenem Build- und Dev-Server

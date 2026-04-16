@@ -1,6 +1,7 @@
 import os
 
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -26,8 +27,21 @@ SUMMARY_MAX_CHARS = int(os.getenv("SUMMARY_MAX_CHARS", "2400"))
 RECENT_TURN_PAIRS = int(os.getenv("RECENT_TURN_PAIRS", "3"))
 RECENT_TURN_OVERLAP = int(os.getenv("RECENT_TURN_OVERLAP", "2"))
 BACKEND_LOG_FILE = os.getenv("BACKEND_LOG_FILE", "logs/backend.log")
+FRONTEND_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("FRONTEND_ORIGINS", "http://localhost:17080,http://127.0.0.1:17080").split(",")
+    if origin.strip()
+]
 
 logger = configure_logging(BACKEND_LOG_FILE, "backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=FRONTEND_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 TURN_USE_CASE = TurnUseCase(
     TurnSettings(

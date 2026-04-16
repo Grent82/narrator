@@ -183,6 +183,7 @@ dist/
 
 build/
 .cache/
+*.tsbuildinfo
 # Log files
 *.log
 logs/

@@ -5,13 +5,14 @@ AKTUELLER UMFANG (IMPLEMENTIERT, IST-STAND)
 1) Kernfunktionalitaet
 - Ein zentraler Storyteller-LLM generiert die Narration.
 - Eingabemodi: Say / Do / Story / Continue.
-- NiceGUI Frontend mit Chat-Log, Story-Steuerung und Side Panel.
+- Browser-Frontend mit Vite, React und TypeScript fuer Chat-Log, Story-Steuerung und Side Panel.
 - Lore-Verwaltung mit Karten und Review-Flow fuer Vorschlaege.
 - Story-Generierung fuer neue Geschichten.
 
 2) Architektur (heutiger Stand)
 - FastAPI Backend mit Streaming-Endpunkt `/turn/stream`.
 - Geschichtete Struktur mit `api`, `application`, `infrastructure`, `frontend`.
+- Frontend als getrennte Web-App in `frontend/`; Browser spricht nur ueber HTTP/Streaming mit dem Backend.
 - Turn-Logik ueber `TurnUseCase` und `turn_service`.
 - LLM-Anbindung via LangChain Community + Ollama.
 
@@ -39,7 +40,9 @@ TECH STACK
 - Pydantic v2
 - SQLAlchemy 2.x
 - Alembic
-- NiceGUI
+- Vite
+- React
+- TypeScript
 - PostgreSQL
 - Qdrant
 - Ollama
@@ -57,7 +60,7 @@ P0
 P1
 - Message-Persistenz und Summary-Konsistenz fuer Edit-/Retry-/Erase-Flows absichern.
 - Lore-/Qdrant-Synchronitaet haerter absichern.
-- Typisierung im Frontend-State verbessern.
+- Typisierung im Frontend-State weiter absichern und API-Vertraege langfristig zentralisieren.
 
 P2
 - Characters / Places / Races als persistente Weltmodelle einfuehren.
