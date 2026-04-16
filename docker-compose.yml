@@ -21,7 +21,6 @@ services:
       - POSTGRES_WAIT_TIMEOUT=60
       - PYTHONPATH=/app
     depends_on:
-      - redis
       - db
       - qdrant
 
@@ -41,13 +40,6 @@ services:
       - PYTHONPATH=/app
     depends_on:
       - backend
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "16379:6379"
-    volumes:
-      - redis-data:/data
 
   db:
     image: postgres:16
@@ -89,6 +81,5 @@ services:
       - qdrant-data:/qdrant/storage
 
 volumes:
-  redis-data:
   ollama-data:
   qdrant-data:
