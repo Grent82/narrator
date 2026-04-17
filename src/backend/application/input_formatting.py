@@ -11,6 +11,14 @@ def normalize_mode(mode: str | None) -> str:
 def format_input_block(mode: str | None, text: str | None) -> str:
     mode_value = normalize_mode(mode)
     text_value = (text or "").strip()
+    if mode_value == "continue":
+        return (
+            "MODE: CONTINUE\n"
+            "TEXT:\n"
+            "Continue the current scene immediately after the last assistant sentence.\n"
+            "Do not repeat, paraphrase, restart, or summarize prior text.\n"
+            "Write only new narrative progression."
+        )
     return f"MODE: {mode_value.upper()}\nTEXT: {text_value}"
 
 

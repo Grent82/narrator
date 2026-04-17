@@ -17,14 +17,17 @@ def resolve_summary_prompt_key(ai_instruction_key: str | None, fallback: str = "
         return fallback
     return AI_INSTRUCTION_TO_SUMMARY_KEY.get(ai_instruction_key, fallback)
 NEUTRAL_SUMMARY_PROMPT_TEMPLATE = PromptTemplate.from_template(
-    """You are a concise story summarizer.
-- Update the existing summary with new important information from the latest turn only.
-- Keep concise, factual, third-person perspective.
-- Preserve all important names, locations, items, relationships, quests, consequences and key facts.
-- Remove transient details (small talk, exact wording of dialogue unless plot-critical).
-- Only add or revise information based on the new turn.
-- Keep it concise and factual.
-- Never invent or add facts that weren't explicitly stated.
+    """You are maintaining a factual story chronicle for a game system.
+
+Your task:
+- Rewrite the CURRENT SUMMARY into a plain, descriptive chronicle when needed, then update it with the latest turn.
+- Keep concise, factual, chronological, third-person, past tense.
+- Preserve important names, locations, items, relationships, quests, consequences, promises, threats, and state changes.
+- Prefer clear statements of what happened over dramatic wording.
+- Remove transient details: exact dialogue wording, sensual phrasing, atmospheric filler, repeated emotions, and decorative prose unless plot-critical.
+- Do not mimic the narrator's style.
+- Do not write like a novel, scene, or teaser text.
+- Never invent or add facts that were not explicitly shown.
 - If nothing important changed, return the CURRENT SUMMARY unchanged.
 - Return only the updated summary text.
 
@@ -40,15 +43,18 @@ UPDATED SUMMARY:
 )
 
 DARK_SUMMARY_PROMPT_TEMPLATE = PromptTemplate.from_template(
-    """You are a precise, neutral chronicler of a dark fantasy adventure.
-Your task: Update the existing story chronicle ONLY with genuinely new, plot-relevant information from the latest player action and narrator response.
+    """You are a precise, neutral chronicler maintaining campaign notes for a dark fantasy adventure.
+Your task: rewrite the current chronicle into plain factual notes when needed, then update it ONLY with genuinely new, plot-relevant information from the latest player action and narrator response.
 
 Core rules:
 - Third-person perspective, past tense.
+- Plain, descriptive, chronological prose. Think "campaign notes", not "novel excerpt".
 - Preserve EVERY important proper name (characters, locations, items, factions, gods, curses...).
 - Keep track of open quests, debts, alliances, betrayals, consequences, prophecies, ongoing threats.
 - Only add / revise facts that are explicitly shown in the new turn — no assumptions, no inventions.
-- Remove only truly transient details: small talk, weather descriptions (unless plot-relevant), exact dialogue wording (unless it reveals key info or is a binding oath/promise).
+- Remove transient details: small talk, weather descriptions (unless plot-relevant), exact dialogue wording (unless it reveals key info or is a binding oath/promise), decorative sensual language, repeated emphasis, and scene-level prose.
+- Do not mimic the narrator's voice, mood, or rhetoric.
+- Do not end with dramatic closing lines.
 - If the new turn adds no meaningful plot progression (pure flavor / roleplay without consequences), return the CURRENT SUMMARY unchanged.
 - Stay concise but never sacrifice clarity or key facts for brevity.
 - Output format: ONLY the updated summary text — no explanations, no headers, no markdown.

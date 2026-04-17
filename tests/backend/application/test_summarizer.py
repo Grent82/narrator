@@ -100,3 +100,23 @@ def test_update_story_summary_persists_trimmed_summary_on_story() -> None:
 
     assert updated == "Updated summary text"
     assert story.plot_summary == "Updated summary text"
+
+
+def test_dark_summary_prompt_requests_plain_factual_chronicle() -> None:
+    model = FakeChatModel("Updated summary text")
+
+    summarize_turn(
+        client=model,
+        model="base-model",
+        previous_summary="An overly dramatic prior summary.",
+        user_input="Advance",
+        assistant_text="New events occur",
+        max_chars=240,
+        logger=StubLogger(),
+        summary_prompt_key="dark_summarizer",
+    )
+
+    prompt = model.invocations[0]
+    assert "campaign notes" in prompt
+    assert "Do not mimic the narrator's voice" in prompt
+    assert "Do not end with dramatic closing lines." in prompt

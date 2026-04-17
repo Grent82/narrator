@@ -34,8 +34,8 @@ PLOT_FIELD_DEFS = {
     "plot_summary": PlotFieldDef(
         key="plot_summary",
         title="Plot Summary",
-        help_readonly="Short LLM-written summary to keep the story on track. Not editable.",
-        help_editable="Short LLM-written summary to keep the story on track.",
+        help_readonly="Short factual chronicle for system context and story continuity. Not editable.",
+        help_editable="Short factual chronicle for system context and story continuity.",
     ),
     "plot_essentials": PlotFieldDef(
         key="plot_essentials",

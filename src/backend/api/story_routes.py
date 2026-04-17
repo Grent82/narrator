@@ -234,6 +234,31 @@ def _normalize_persisted_messages(messages: List) -> List[dict]:
     return normalized
 
 
+def _is_transient_assistant_message(message: StoryMessageModel) -> bool:
+    if (message.role or "").strip() != "assistant":
+        return False
+    text = (message.text or "").strip()
+    return any(text.startswith(prefix) for prefix in _TRANSIENT_ASSISTANT_PREFIXES)
+
+
+def _cleanup_transient_story_messages(story: StoryModel, db: Session | None = None) -> bool:
+    transient_ids = [message.id for message in story.messages if _is_transient_assistant_message(message)]
+    if not transient_ids:
+        return False
+
+    story.messages = [message for message in story.messages if message.id not in transient_ids]
+    for position, message in enumerate(story.messages):
+        message.position = position
+
+    summary_record = _ensure_summary(story)
+    summary_record.last_position = len(story.messages) - 1 if story.messages else -1
+
+    if db is not None:
+        db.commit()
+        db.refresh(story)
+    return True
+
+
 def _apply_messages(story: StoryModel, messages: List) -> None:
     normalized_messages = _normalize_persisted_messages(messages)
     story.messages.clear()
@@ -302,6 +327,7 @@ def get_story(
     story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
     if not story:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    _cleanup_transient_story_messages(story, db)
     return _story_to_out(story)
 
 
