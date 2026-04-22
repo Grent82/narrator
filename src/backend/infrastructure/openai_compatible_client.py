@@ -117,6 +117,9 @@ def _openai_options(options: dict[str, Any]) -> dict[str, Any]:
         value = options.get(source)
         if value is not None:
             payload[target] = value
+    enable_thinking = options.get("enable_thinking")
+    if enable_thinking is not None:
+        payload["chat_template_kwargs"] = {"enable_thinking": bool(enable_thinking)}
     if "stop" not in payload:
         payload["stop"] = STOP_SEQUENCES
     return payload

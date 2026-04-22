@@ -15,6 +15,8 @@ class ChatModelConfig:
     base_url: str
     model: str
     api_key: str | None = None
+    timeout: float = 30.0
+    enable_thinking: bool | None = None
 
 
 def _env_first(*keys: str) -> str | None:
@@ -30,6 +32,17 @@ def _provider() -> ChatProvider:
     if provider in {"openai", "openai-compatible", "openai_compatible", "ai_hub", "hub"}:
         return "openai_compatible"
     return "ollama"
+
+
+def _optional_bool(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
 
 
 def active_provider_name() -> ChatProvider:
@@ -68,6 +81,8 @@ def get_chat_model_config(model: str | None = None) -> ChatModelConfig:
             base_url=base_url,
             model=resolved_model,
             api_key=_env_first("LLM_API_KEY", "OPENAI_API_KEY", "AI_HUB_API_KEY"),
+            timeout=float(_env_first("LLM_TIMEOUT_SECONDS") or "30"),
+            enable_thinking=_optional_bool(_env_first("LLM_ENABLE_THINKING")),
         )
     return ChatModelConfig(
         provider=provider,

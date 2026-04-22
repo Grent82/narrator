@@ -18,10 +18,13 @@ from src.backend.infrastructure.openai_compatible_client import OpenAICompatible
 def _build_chat_model(model: str | None = None, **options) -> ChatModelProtocol:
     config = get_chat_model_config(model)
     if config.provider == "openai_compatible":
+        if config.enable_thinking is not None:
+            options = {**options, "enable_thinking": config.enable_thinking}
         client = OpenAICompatibleChatModel(
             base_url=config.base_url,
             model=config.model,
             api_key=config.api_key,
+            timeout=config.timeout,
         )
         return client.bind(**options) if options else client
     return ChatOllama(

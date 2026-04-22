@@ -29,6 +29,7 @@ def test_openai_compatible_options_translate_supported_generation_settings() -> 
             "num_predict": 512,
             "top_k": 40,
             "repeat_penalty": 1.1,
+            "enable_thinking": False,
         }
     )
 
@@ -37,6 +38,7 @@ def test_openai_compatible_options_translate_supported_generation_settings() -> 
     assert payload["max_tokens"] == 512
     assert "top_k" not in payload
     assert "repeat_penalty" not in payload
+    assert payload["chat_template_kwargs"] == {"enable_thinking": False}
     assert payload["stop"]
 
 
