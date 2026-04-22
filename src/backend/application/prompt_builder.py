@@ -1,10 +1,11 @@
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from src.backend.application.input_formatting import format_input_block
 from src.backend.application.ports import LoggerProtocol
+from src.backend.application.prompt_renderer import render_profile_guidance
 from src.backend.infrastructure.models import StoryModel
 
 
@@ -57,7 +58,12 @@ def _format_lore(entries: Iterable, plot_essentials: str, logger: LoggerProtocol
             lines.append(f"* {tag} - {description}" if tag else f"* {description}")
         else:
             lines.append(f"* {title}" if title else "")
-        logger and logger.debug("lore_entry title=%s tag=%s description=%s", title, tag, description)
+        logger and logger.debug(
+            "lore_entry title=%s tag=%s description=%s",
+            title,
+            tag,
+            description,
+        )
     return "\n".join(lines)
 
 
@@ -71,7 +77,9 @@ def _message_value(msg, key: str, default=None):
 
 def build_system_prompt(
     story: StoryModel,
-    lore_entries: Optional[Iterable] = None,
+    lore_entries: Iterable | None = None,
+    mode: str = "story",
+    model_profile_id: str | None = None,
     logger: LoggerProtocol = None,
 ) -> str:
     sections = []
@@ -100,10 +108,18 @@ def build_system_prompt(
     if author_note:
         sections.append("[AUTHOR NOTE]\n" + author_note)
 
+    profile_guidance = render_profile_guidance(model_profile_id, mode).strip()
+    if profile_guidance:
+        sections.append("[MODEL-SPECIFIC GUIDANCE]\n" + profile_guidance)
+
     return "\n\n".join(sections)
 
 
-def _build_history_messages(messages: Iterable, max_pairs: int, overlap_pairs: int = 0) -> list[BaseMessage]:
+def _build_history_messages(
+    messages: Iterable,
+    max_pairs: int,
+    overlap_pairs: int = 0,
+) -> list[BaseMessage]:
     history: list[BaseMessage] = []
     for msg in messages:
         role = str(_message_value(msg, "role", "")).strip().lower()
@@ -131,14 +147,21 @@ def build_chat_messages(
     story: StoryModel | None,
     user_text: str,
     mode: str = "story",
-    lore_entries: Optional[Iterable] = None,
+    lore_entries: Iterable | None = None,
     recent_pairs: int = 3,
     overlap_pairs: int = 0,
+    model_profile_id: str | None = None,
     logger: LoggerProtocol = None,
 ) -> list[BaseMessage]:
     messages: list[BaseMessage] = []
     if story:
-        system_prompt = build_system_prompt(story, lore_entries=lore_entries, logger=logger)
+        system_prompt = build_system_prompt(
+            story,
+            lore_entries=lore_entries,
+            mode=mode,
+            model_profile_id=model_profile_id,
+            logger=logger,
+        )
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
         if story.messages:

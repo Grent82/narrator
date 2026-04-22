@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import os
 import threading
 import time
-from typing import Callable, Iterator
-
-from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
+from collections.abc import Callable, Iterator
 
 from src.backend.application.input_formatting import format_user_for_summary
 from src.backend.application.llm_settings import DEFAULT_OPTIONS, MODE_OPTIONS
+from src.backend.application.lore_suggester import extract_suggestions, save_suggestions
+from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
 from src.backend.application.prompt_builder import build_chat_messages
 from src.backend.application.use_cases.turn_models import TurnContext
-from src.backend.application.lore_suggester import extract_suggestions, save_suggestions
 from src.backend.infrastructure.db import SessionLocal
 from src.backend.infrastructure.langchain_clients import get_chat_model
 from src.backend.infrastructure.models import LoreEntryModel
@@ -25,6 +23,7 @@ def stream_turn(
     commit: Callable[[], None] | None = None,
     summary_model: str | None = None,
     summary_max_chars: int | None = None,
+    summary_model_profile_id: str | None = None,
     recent_pairs: int = 3,
     overlap_pairs: int = 0,
 ) -> Iterator[str]:
@@ -39,6 +38,7 @@ def stream_turn(
             lore_entries=context.lore_entries,
             recent_pairs=recent_pairs,
             overlap_pairs=overlap_pairs,
+            model_profile_id=getattr(context, "model_profile_id", None),
             logger=logger,
         )
         logger.debug("ollama_stream_request messages=%s", messages)
@@ -53,7 +53,10 @@ def stream_turn(
             if token:
                 buffer += token
                 yield token
-        logger.debug("ollama_stream_completed duration_ms=%d", int((time.monotonic() - start) * 1000))
+        logger.debug(
+            "ollama_stream_completed duration_ms=%d",
+            int((time.monotonic() - start) * 1000),
+        )
         if last_usage:
             logger.debug("ollama_usage %s", last_usage)
         if context.story and commit and summary_model and summary_max_chars is not None:
@@ -67,6 +70,7 @@ def stream_turn(
                 assistant_text=buffer,
                 max_chars=summary_max_chars,
                 logger=logger,
+                model_profile_id=summary_model_profile_id,
             )
             commit()
             _schedule_lore_suggestions(context.story.id, context.text, buffer, model, logger)
@@ -98,7 +102,14 @@ def _schedule_lore_suggestions(
             if current_model and current_model != model and hasattr(llm, "model_copy"):
                 llm = llm.model_copy(update={"model": model})
             suggestions = extract_suggestions(llm, model, entries, user_input, assistant_text)
-            created = save_suggestions(story_id, user_input, assistant_text, entries, suggestions, db)
+            created = save_suggestions(
+                story_id,
+                user_input,
+                assistant_text,
+                entries,
+                suggestions,
+                db,
+            )
             logger.debug("lore_suggestions_created story_id=%s count=%d", story_id, created)
         except Exception:
             logger.exception("lore_suggestions_failed story_id=%s", story_id)

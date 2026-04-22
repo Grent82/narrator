@@ -1,15 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Iterator
-
-from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
 
 from src.backend.application.input_formatting import normalize_mode
+from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
 from src.backend.application.turn_service import stream_turn
-from src.backend.application.use_cases.turn_models import TurnContext, TurnPayload
 from src.backend.application.use_cases.lore import LoreRepository
 from src.backend.application.use_cases.stories import StoryRepository
+from src.backend.application.use_cases.turn_models import TurnContext, TurnPayload
 
 
 @dataclass(frozen=True)
@@ -17,6 +16,8 @@ class TurnSettings:
     model: str
     summary_model: str
     summary_max_chars: int
+    model_profile_id: str
+    summary_model_profile_id: str
     recent_pairs: int = 3
     overlap_pairs: int = 0
 
@@ -42,7 +43,13 @@ class TurnUseCase:
                 raise ValueError("Story not found")
             retrieval_query = "" if mode == "continue" else text
             lore_entries = lore_repo.retrieve(story.id, retrieval_query)
-        return TurnContext(text=text, mode=mode, story=story, lore_entries=lore_entries)
+        return TurnContext(
+            text=text,
+            mode=mode,
+            story=story,
+            lore_entries=lore_entries,
+            model_profile_id=self._settings.model_profile_id,
+        )
 
     def run_stream(
         self,
@@ -60,6 +67,7 @@ class TurnUseCase:
             commit=story_repo.commit,
             summary_model=self._settings.summary_model,
             summary_max_chars=self._settings.summary_max_chars,
+            summary_model_profile_id=self._settings.summary_model_profile_id,
             recent_pairs=self._settings.recent_pairs,
             overlap_pairs=self._settings.overlap_pairs,
         )

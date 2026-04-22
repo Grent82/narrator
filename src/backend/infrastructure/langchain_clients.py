@@ -5,18 +5,39 @@ import os
 from langchain_community.chat_models import ChatOllama
 from langchain_community.embeddings import OllamaEmbeddings
 
+from src.backend.application.ports import ChatModelProtocol
+from src.backend.infrastructure.llm_config import (
+    active_chat_model_name,
+    active_story_generator_model_name,
+    active_story_generator_repair_model_name,
+    get_chat_model_config,
+)
+from src.backend.infrastructure.openai_compatible_client import OpenAICompatibleChatModel
 
-def get_chat_model() -> ChatOllama:
+
+def _build_chat_model(model: str | None = None, **options) -> ChatModelProtocol:
+    config = get_chat_model_config(model)
+    if config.provider == "openai_compatible":
+        client = OpenAICompatibleChatModel(
+            base_url=config.base_url,
+            model=config.model,
+            api_key=config.api_key,
+        )
+        return client.bind(**options) if options else client
     return ChatOllama(
-        base_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
-        model=os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b"),
+        base_url=config.base_url,
+        model=config.model,
+        **options,
     )
 
 
-def get_story_generator_model() -> ChatOllama:
-    return ChatOllama(
-        base_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
-        model=os.getenv("STORY_GEN_MODEL", os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b")),
+def get_chat_model() -> ChatModelProtocol:
+    return _build_chat_model(active_chat_model_name())
+
+
+def get_story_generator_model() -> ChatModelProtocol:
+    return _build_chat_model(
+        active_story_generator_model_name(),
         temperature=float(os.getenv("STORY_GEN_TEMPERATURE", "0.85")),
         top_p=float(os.getenv("STORY_GEN_TOP_P", "0.92")),
         top_k=int(os.getenv("STORY_GEN_TOP_K", "60")),
@@ -26,10 +47,9 @@ def get_story_generator_model() -> ChatOllama:
     )
 
 
-def get_story_generator_repair_model() -> ChatOllama:
-    return ChatOllama(
-        base_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
-        model=os.getenv("STORY_GEN_REPAIR_MODEL", os.getenv("STORY_GEN_MODEL", os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b"))),
+def get_story_generator_repair_model() -> ChatModelProtocol:
+    return _build_chat_model(
+        active_story_generator_repair_model_name(),
         temperature=float(os.getenv("STORY_GEN_REPAIR_TEMPERATURE", "0.2")),
         top_p=float(os.getenv("STORY_GEN_REPAIR_TOP_P", "0.95")),
         top_k=int(os.getenv("STORY_GEN_REPAIR_TOP_K", "40")),

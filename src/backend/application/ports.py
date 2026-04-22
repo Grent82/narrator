@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, Iterator, Protocol
+from collections.abc import Iterable, Iterator
+from typing import Any, Protocol
 
 from langchain_core.messages import BaseMessage
 
@@ -14,13 +15,13 @@ class LoggerProtocol(Protocol):
 
 
 class ChatModelProtocol(Protocol):
-    def bind(self, **kwargs: Any) -> "ChatModelProtocol":
+    def bind(self, **kwargs: Any) -> ChatModelProtocol:
         ...
 
     def stream(self, input: Iterable[BaseMessage]) -> Iterator[BaseMessage]:
         ...
 
-    def invoke(self, input: Iterable[BaseMessage]) -> BaseMessage:
+    def invoke(self, input: Iterable[BaseMessage] | str) -> BaseMessage:
         ...
 
 

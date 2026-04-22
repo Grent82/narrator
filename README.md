@@ -64,11 +64,17 @@ npm run dev
 
 ### Ollama / LLM
 
+- `LLM_PROVIDER` (`ollama` or `openai_compatible`; defaults to `ollama`)
+- `LLM_MODEL` (optional provider-neutral override for the main chat model)
+- `LLM_BASE_URL` / `LLM_API_KEY` for OpenAI-compatible AI hubs
 - `OLLAMA_URL`
-- `OLLAMA_MODEL`
+- `OLLAMA_MODEL` (kept as the local Ollama default when `LLM_MODEL` is unset)
+- `MODEL_PROFILE`
 - `SUMMARY_MODEL`
+- `SUMMARY_MODEL_PROFILE`
 - `STORY_GEN_MODEL`
 - `STORY_GEN_REPAIR_MODEL`
+- Model profiles describe prompt behavior independently from provider/model IDs. Current profile classes include `local_small_instruct`, `balanced_reasoning`, and `reasoning_strong`.
 
 ### Retrieval / Embeddings
 

@@ -6,13 +6,18 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.backend.api.story_routes import router as story_router
-from src.backend.application.use_cases.turn_models import TurnPayload
+from src.backend.application.model_profiles import infer_model_profile_id
 from src.backend.application.use_cases.lore import DbLoreRepository
 from src.backend.application.use_cases.stories import DbStoryRepository
+from src.backend.application.use_cases.turn_models import TurnPayload
 from src.backend.application.use_cases.turns import TurnSettings, TurnUseCase
 from src.backend.infrastructure.db import get_db
 from src.backend.infrastructure.langchain_clients import get_chat_model, get_embedding_model
-from src.backend.infrastructure.ollama_client import get_ollama_client
+from src.backend.infrastructure.llm_config import (
+    active_chat_model_name,
+    active_provider_name,
+    active_summary_model_name,
+)
 from src.shared.logging_config import configure_logging
 
 app = FastAPI()
@@ -21,8 +26,10 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "17000"))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "dolphin-llama3:8b")
-SUMMARY_MODEL = os.getenv("SUMMARY_MODEL", OLLAMA_MODEL)
+OLLAMA_MODEL = active_chat_model_name()
+SUMMARY_MODEL = active_summary_model_name()
+MODEL_PROFILE_ID = infer_model_profile_id(OLLAMA_MODEL, os.getenv("MODEL_PROFILE"))
+SUMMARY_MODEL_PROFILE_ID = infer_model_profile_id(SUMMARY_MODEL, os.getenv("SUMMARY_MODEL_PROFILE"))
 SUMMARY_MAX_CHARS = int(os.getenv("SUMMARY_MAX_CHARS", "1200"))
 RECENT_TURN_PAIRS = int(os.getenv("RECENT_TURN_PAIRS", "3"))
 RECENT_TURN_OVERLAP = int(os.getenv("RECENT_TURN_OVERLAP", "2"))
@@ -34,6 +41,8 @@ FRONTEND_ORIGINS = [
 ]
 
 logger = configure_logging(BACKEND_LOG_FILE, "backend")
+DB_DEPENDENCY = Depends(get_db)
+CHAT_MODEL_DEPENDENCY = Depends(get_chat_model)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,6 +57,8 @@ TURN_USE_CASE = TurnUseCase(
         model=OLLAMA_MODEL,
         summary_model=SUMMARY_MODEL,
         summary_max_chars=SUMMARY_MAX_CHARS,
+        model_profile_id=MODEL_PROFILE_ID,
+        summary_model_profile_id=SUMMARY_MODEL_PROFILE_ID,
         recent_pairs=RECENT_TURN_PAIRS,
         overlap_pairs=RECENT_TURN_OVERLAP,
     ),
@@ -81,14 +92,19 @@ def healthcheck():
         "redis_url": REDIS_URL,
         "ollama_url": OLLAMA_URL,
         "ollama_model": OLLAMA_MODEL,
+        "llm_provider": active_provider_name(),
+        "llm_model": OLLAMA_MODEL,
+        "model_profile": MODEL_PROFILE_ID,
+        "summary_model": SUMMARY_MODEL,
+        "summary_model_profile": SUMMARY_MODEL_PROFILE_ID,
     }
 
 
 @app.post("/turn/stream")
 def handle_turn_stream(
     payload: TurnRequest,
-    db=Depends(get_db),
-    chat_model=Depends(get_chat_model),
+    db=DB_DEPENDENCY,
+    chat_model=CHAT_MODEL_DEPENDENCY,
 ):
     try:
         repo = DbStoryRepository(db=db)

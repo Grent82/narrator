@@ -14,7 +14,7 @@ AKTUELLER UMFANG (IMPLEMENTIERT, IST-STAND)
 - Geschichtete Struktur mit `api`, `application`, `infrastructure`, `frontend`.
 - Frontend als getrennte Web-App in `frontend/`; Browser spricht nur ueber HTTP/Streaming mit dem Backend.
 - Turn-Logik ueber `TurnUseCase` und `turn_service`.
-- LLM-Anbindung via LangChain Community + Ollama.
+- LLM-Anbindung via Provider-Fabrik: Ollama lokal oder OpenAI-compatible AI-Hub.
 
 3) Datenhaltung
 - PostgreSQL als Primary DB.

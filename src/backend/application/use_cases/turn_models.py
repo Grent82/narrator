@@ -21,3 +21,4 @@ class TurnContext:
     mode: str
     story: StoryModel | None
     lore_entries: list[Document] | None
+    model_profile_id: str | None = None
