@@ -145,23 +145,6 @@ def _validate_name_consistency(entries: list[dict], logger: LoggerProtocol) -> l
         if not title:
             continue
 
-        # Normalize: extract core name (remove prefixes like "Prince ", "Lord ")
-        normalized = title.lower()
-        for prefix in ["prince ", "queen ", "king ", "lord ", "lady ", "the "]:
-            if normalized.startswith(prefix):
-                normalized = normalized[len(prefix):]
-                break
-        for suffix in [" of valdor", " of aurelien", " (the crow)", " (silver tongue)"]:
-            if normalized.endswith(suffix):
-                normalized = normalized[:-len(suffix)]
-                break
-
-        # Track variations
-        if normalized not in character_names:
-            character_names[normalized] = []
-        if title not in character_names[normalized]:
-            character_names[normalized].append(title)
-
     # Check for similar names that might be inconsistencies
     # Simple heuristic: names sharing >70% of characters
     normalized_list = list(character_names.keys())
