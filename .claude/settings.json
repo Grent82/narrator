@@ -14,9 +14,7 @@
     "ANTHROPIC_API_KEY": "sk-K5FI1yOMuxd8-0oWZitQrg",
     "ANTHROPIC_BASE_URL": "https://adesso-ai-hub.3asabc.de",
     "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
-    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
-    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
-    "OTEL_METRICS_EXPORTER": "otlp"
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
   },
   "hooks": {
     "PostToolUse": [
