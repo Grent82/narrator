@@ -1,3 +1,3 @@
 # Memory Index
 
-- Derzeit keine projektspezifischen Memory-Eintraege.
+- [Feedback: No Assumptions](feedback_no_assumptions.md) — Frage statt Annahmen treffen
