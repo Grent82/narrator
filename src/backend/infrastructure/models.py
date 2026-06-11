@@ -207,3 +207,39 @@ class WorldviewSettingModel(Base):
 
 # Add relationship to StoryModel
 StoryModel.worldview_settings = relationship("WorldviewSettingModel", back_populates="story", cascade="all, delete-orphan", order_by="WorldviewSettingModel.created_at")
+
+
+class CharacterModel(Base):
+    __tablename__ = "characters"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(length=255), nullable=False)
+    nickname: Mapped[str | None] = mapped_column(String(length=255), nullable=True)
+    is_player: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    # Character profile data
+    profile: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    relation: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+
+    # Dynamic state (BookWorld-inspired)
+    goal: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    motivation: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+
+    # Location tracking
+    location_id: Mapped[str | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), nullable=True)
+
+    # Metadata
+    activity: Mapped[float] = mapped_column(default=1.0, nullable=False)
+    character_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default="{}")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+
+    story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="characters")
+    location: Mapped["LocationModel | None"] = relationship("LocationModel")
+
+
+# Add relationship to StoryModel
+StoryModel.characters = relationship("CharacterModel", back_populates="story", cascade="all, delete-orphan", order_by="CharacterModel.name")

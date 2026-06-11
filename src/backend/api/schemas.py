@@ -191,3 +191,48 @@ class StoryGenerateJobStatus(BaseModel):
     status: str
     result: Optional[StoryGenerateResponse] = None
     error: Optional[str] = None
+
+
+# Character schemas
+class CharacterIn(BaseModel):
+    name: str
+    nickname: Optional[str] = None
+    is_player: bool = False
+    profile: str = ""
+    relation: str = ""
+    goal: str = ""
+    status: str = ""
+    motivation: str = ""
+    location_id: Optional[str] = None
+    activity: float = 1.0
+    metadata: dict = {}
+
+
+class CharacterOut(BaseModel):
+    id: str
+    story_id: str
+    name: str
+    nickname: Optional[str] = None
+    is_player: bool
+    profile: str
+    relation: str
+    goal: str
+    status: str
+    motivation: str
+    location_id: Optional[str] = None
+    activity: float
+    metadata: dict
+    created_at: str
+    updated_at: str
+
+
+class CharacterUpdate(BaseModel):
+    nickname: Optional[str] = None
+    profile: Optional[str] = None
+    relation: Optional[str] = None
+    goal: Optional[str] = None
+    status: Optional[str] = None
+    motivation: Optional[str] = None
+    location_id: Optional[str] = None
+    activity: Optional[float] = None
+    metadata: Optional[dict] = None
