@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
 
 from langchain_core.documents import Document
@@ -5,7 +7,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 from src.backend.application.input_formatting import format_input_block
 from src.backend.application.ports import LoggerProtocol
-from src.backend.application.prompt_renderer import render_profile_guidance
+from src.backend.application.prompt_renderer import render_profile_guidance, render_size_guidance
 from src.backend.infrastructure.models import StoryModel
 
 
@@ -80,8 +82,22 @@ def build_system_prompt(
     lore_entries: Iterable | None = None,
     mode: str = "story",
     model_profile_id: str | None = None,
+    model_name: str | None = None,
     logger: LoggerProtocol = None,
 ) -> str:
+    """Build system prompt with optional model-adaptive enhancements.
+
+    Args:
+        story: The story model
+        lore_entries: Optional lore entries to include
+        mode: The operation mode (story, continue, say, do)
+        model_profile_id: The model class profile ID
+        model_name: The model identifier for size-tier detection
+        logger: Optional logger
+
+    Returns:
+        The formatted system prompt
+    """
     sections = []
 
     ai_instructions = (story.ai_instructions or "").strip()
@@ -108,9 +124,15 @@ def build_system_prompt(
     if author_note:
         sections.append("[AUTHOR NOTE]\n" + author_note)
 
-    profile_guidance = render_profile_guidance(model_profile_id, mode).strip()
+    # Model class profile guidance
+    profile_guidance = render_profile_guidance(model_profile_id, mode, model_name).strip()
     if profile_guidance:
         sections.append("[MODEL-SPECIFIC GUIDANCE]\n" + profile_guidance)
+
+    # Size-tier specific guidance (CoT, repetition prevention, etc.)
+    size_guidance = render_size_guidance(model_name, mode).strip()
+    if size_guidance:
+        sections.append("[SIZE-ADAPTED GUIDANCE]\n" + size_guidance)
 
     return "\n\n".join(sections)
 
@@ -151,20 +173,113 @@ def build_chat_messages(
     recent_pairs: int = 3,
     overlap_pairs: int = 0,
     model_profile_id: str | None = None,
+    model_name: str | None = None,
     logger: LoggerProtocol = None,
+    use_strategy: bool = False,
 ) -> list[BaseMessage]:
+    """Build chat messages with optional strategy-based prompting.
+
+    Args:
+        story: The story model
+        user_text: The user's input text
+        mode: The operation mode (story, continue, say, do)
+        lore_entries: Optional lore entries to include
+        recent_pairs: Number of recent message pairs to include
+        overlap_pairs: Additional pairs for overlap context
+        model_profile_id: The model class profile ID
+        model_name: The model identifier for size-tier/strategy detection
+        logger: Optional logger
+        use_strategy: If True, use the new strategy-based approach (future)
+
+    Returns:
+        List of LangChain messages ready for the LLM
+    """
     messages: list[BaseMessage] = []
+
     if story:
         system_prompt = build_system_prompt(
             story,
             lore_entries=lore_entries,
             mode=mode,
             model_profile_id=model_profile_id,
+            model_name=model_name,
             logger=logger,
         )
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
         if story.messages:
             messages.extend(_build_history_messages(story.messages, recent_pairs, overlap_pairs))
+
     messages.append(HumanMessage(content=format_input_block(mode, user_text)))
     return messages
+
+
+# Strategy-based prompting (optional, opt-in)
+def build_chat_messages_with_strategy(
+    story: StoryModel | None,
+    user_text: str,
+    mode: str = "story",
+    lore_entries: Iterable | None = None,
+    recent_pairs: int = 3,
+    overlap_pairs: int = 0,
+    model_name: str | None = None,
+    logger: LoggerProtocol = None,
+) -> list[BaseMessage]:
+    """Build chat messages using the new strategy-based approach.
+
+    This function uses provider-specific strategies (Claude XML, Qwen Markdown, etc.)
+    and size-adapted guidance for optimal prompt formatting.
+
+    Args:
+        story: The story model
+        user_text: The user's input text
+        mode: The operation mode (story, continue, say, do)
+        lore_entries: Optional lore entries to include
+        recent_pairs: Number of recent message pairs to include
+        overlap_pairs: Additional pairs for overlap context
+        model_name: The model identifier for strategy selection
+        logger: Optional logger
+
+    Returns:
+        List of LangChain messages ready for the LLM
+    """
+    from src.backend.application.prompt_strategies.factory import get_prompt_strategy
+
+    if not model_name:
+        # Fall back to legacy approach
+        return build_chat_messages(
+            story=story,
+            user_text=user_text,
+            mode=mode,
+            lore_entries=lore_entries,
+            recent_pairs=recent_pairs,
+            overlap_pairs=overlap_pairs,
+            logger=logger,
+        )
+
+    strategy = get_prompt_strategy(model_name=model_name)
+
+    # Build context for strategy
+    from src.backend.application.prompt_strategies.base import PromptContext
+
+    context = PromptContext(
+        ai_instructions=story.ai_instructions if story else None,
+        plot_summary=story.plot_summary if story else None,
+        plot_essentials=story.plot_essentials if story else None,
+        lore_block=_format_lore(
+            lore_entries if lore_entries is not None else (story.lore_entries if story else []),
+            story.plot_essentials if story else "",
+            logger=logger,
+        ).strip() if story else None,
+        author_note=story.author_note if story else None,
+        mode=mode,
+        model_name=model_name,
+        recent_messages=_build_history_messages(
+            story.messages if story else [],
+            recent_pairs,
+            overlap_pairs,
+        ),
+        user_text=user_text,
+    )
+
+    return strategy.build_messages(context)

@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from src.backend.application.size_tier import SizeProfile, get_size_profile
+
 Provider = Literal["ollama", "openai_compatible", "anthropic", "gemini"]
-PromptVerbosity = Literal["compact", "balanced", "detailed"]
-StructuredOutputStrength = Literal["weak", "medium", "strong"]
-RepetitionRisk = Literal["low", "medium", "high"]
+PromptVerbosity = Literal["compact", "balanced", "detailed", "elaborate"]
+StructuredOutputStrength = Literal["weak", "medium", "strong", "native"]
+RepetitionRisk = Literal["very_high", "high", "medium", "low"]
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,10 @@ class ModelClassProfile:
     story_turn_guidance: tuple[str, ...]
     continue_guidance: tuple[str, ...]
     summary_guidance: tuple[str, ...]
+    # Size tier override (if None, inferred from model name)
+    size_tier_override: str | None = None
+    # Whether to require chain-of-thought (overrides size default)
+    require_cot: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -179,3 +185,39 @@ def infer_model_profile_id(model_name: str | None, explicit_profile_id: str | No
     if any(token in normalized for token in ("sonnet", "gpt-4", "gemini")):
         return "balanced_reasoning"
     return DEFAULT_MODEL_PROFILE_ID
+
+
+def get_effective_size_profile(model_name: str | None, profile_id: str | None = None) -> SizeProfile:
+    """Get the effective size profile combining model detection and profile overrides.
+
+    Args:
+        model_name: The model identifier
+        profile_id: Optional model class profile ID for overrides
+
+    Returns:
+        The effective SizeProfile for the model
+    """
+    base_profile = get_size_profile(model_name)
+
+    if not profile_id or profile_id not in MODEL_CLASS_PROFILES:
+        return base_profile
+
+    class_profile = MODEL_CLASS_PROFILES[profile_id]
+
+    # Check for overrides
+    if class_profile.require_cot is not None:
+        # Return a modified profile with the CoT override
+        return SizeProfile(
+            tier=base_profile.tier,
+            verbosity=base_profile.verbosity,
+            require_cot=class_profile.require_cot,
+            cot_style=base_profile.cot_style,
+            use_tot=base_profile.use_tot,
+            structured_output_strength=base_profile.structured_output_strength,
+            repetition_risk=base_profile.repetition_risk,
+            guidance_density=base_profile.guidance_density,
+            include_few_shot=base_profile.include_few_shot,
+            system_prompt_budget_pct=base_profile.system_prompt_budget_pct,
+        )
+
+    return base_profile

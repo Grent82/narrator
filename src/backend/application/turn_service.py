@@ -26,24 +26,57 @@ def stream_turn(
     summary_model_profile_id: str | None = None,
     recent_pairs: int = 3,
     overlap_pairs: int = 0,
+    use_strategy: bool = False,
 ) -> Iterator[str]:
+    """Stream a turn response from the LLM.
+
+    Args:
+        context: The turn context with story and user input
+        chat_model: The chat model client
+        model: The model identifier (e.g., "dolphin-llama3:8b")
+        logger: The logger
+        commit: Optional commit callback after summary update
+        summary_model: Model to use for summary updates
+        summary_max_chars: Max characters for summary
+        summary_model_profile_id: Profile ID for summary model
+        recent_pairs: Number of recent message pairs to include
+        overlap_pairs: Additional pairs for overlap context
+        use_strategy: If True, use the new strategy-based prompting approach
+    """
     start = time.monotonic()
     buffer = ""
     last_usage = None
     try:
-        messages = build_chat_messages(
-            context.story,
-            context.text,
-            mode=context.mode,
-            lore_entries=context.lore_entries,
-            recent_pairs=recent_pairs,
-            overlap_pairs=overlap_pairs,
-            model_profile_id=getattr(context, "model_profile_id", None),
-            logger=logger,
-        )
-        logger.debug("ollama_stream_request messages=%s", messages)
+        model_profile_id = getattr(context, "model_profile_id", None)
+
+        if use_strategy:
+            from src.backend.application.prompt_builder import build_chat_messages_with_strategy
+
+            messages = build_chat_messages_with_strategy(
+                context.story,
+                context.text,
+                mode=context.mode,
+                lore_entries=context.lore_entries,
+                recent_pairs=recent_pairs,
+                overlap_pairs=overlap_pairs,
+                model_name=model,
+                logger=logger,
+            )
+        else:
+            messages = build_chat_messages(
+                context.story,
+                context.text,
+                mode=context.mode,
+                lore_entries=context.lore_entries,
+                recent_pairs=recent_pairs,
+                overlap_pairs=overlap_pairs,
+                model_profile_id=model_profile_id,
+                model_name=model,
+                logger=logger,
+            )
+        logger.debug("llm_stream_request messages=%s", messages)
         options = MODE_OPTIONS.get(context.mode, DEFAULT_OPTIONS)
-        logger.debug("ollama_stream_options %s", options)
+        logger.debug("llm_stream_options %s", options)
         bound = chat_model.bind(model=model, **options)
         for part in bound.stream(messages):
             token = getattr(part, "content", "") or ""
@@ -54,11 +87,11 @@ def stream_turn(
                 buffer += token
                 yield token
         logger.debug(
-            "ollama_stream_completed duration_ms=%d",
+            "llm_stream_completed duration_ms=%d",
             int((time.monotonic() - start) * 1000),
         )
         if last_usage:
-            logger.debug("ollama_usage %s", last_usage)
+            logger.debug("llm_usage %s", last_usage)
         if context.story and commit and summary_model and summary_max_chars is not None:
             from src.backend.application.summarizer import update_story_summary
 
@@ -77,8 +110,8 @@ def stream_turn(
         else:
             logger.debug("story_summary_skipped no_story_or_commit")
     except Exception as exc:
-        logger.exception("ollama_stream_error")
-        yield f"\n[Ollama error: {exc}]"
+        logger.exception("llm_stream_error")
+        yield f"\n[LLM error: {exc}]"
 
 
 def _schedule_lore_suggestions(
