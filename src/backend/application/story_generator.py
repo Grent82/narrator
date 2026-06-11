@@ -9,6 +9,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.backend.api.schemas import StoryGenerateRequest
 from src.backend.application.ports import ChatModelProtocol, LoggerProtocol
+from src.backend.application.size_tier import SizeProfile, SizeTier, get_size_profile
+from src.backend.application.story_generator_prompts import (
+    GeneratorContext,
+    get_generator_strategy,
+)
 
 
 LORE_TAGS = {"Character", "Player", "Place", "Race", "Event", "Item", "Faction", "Rule", "Custom"}
@@ -124,6 +129,50 @@ def _dedupe(entries: list[dict]) -> list[dict]:
     return result
 
 
+def _build_prompts_with_strategy(
+    model_name: str | None,
+    size_profile: SizeProfile,
+    ai_instruction_key: str,
+    name: str,
+    role: str,
+    gender: str,
+    age: str,
+    traits: str,
+    world_input: str,
+    start_template: str,
+    start_custom: str,
+) -> tuple[str, str]:
+    """Build provider-specific system and user prompts using strategy pattern.
+
+    Args:
+        model_name: The model identifier
+        size_profile: Size profile for model-adapted guidance
+        ai_instruction_key: The AI instruction key
+        name, role, gender, age, traits: Character details
+        world_input: World direction
+        start_template, start_custom: Start template options
+
+    Returns:
+        Tuple of (system_prompt, user_prompt) formatted for the provider
+    """
+    strategy = get_generator_strategy(model_name=model_name, size_profile=size_profile)
+
+    ctx = GeneratorContext(
+        ai_instruction_key=ai_instruction_key,
+        role=role,
+        name=name,
+        gender=gender,
+        age=age,
+        traits=traits,
+        world_input=world_input,
+        start_template=start_template,
+        start_custom=start_custom,
+        size_profile=size_profile,
+    )
+
+    return strategy.build_system_prompt(ctx), strategy.build_user_prompt(ctx)
+
+
 def _request_more_lore(
     chat_model: ChatModelProtocol,
     logger: LoggerProtocol,
@@ -131,17 +180,29 @@ def _request_more_lore(
     existing_titles: list[str],
     ai_instruction_key: str,
     world_input: str,
+    size_tier: SizeTier,
 ) -> list[dict]:
-    prompt = (
-        "You are expanding a dark fantasy lore database in the vein of Joe Abercrombie, early GRRM, and FromSoftware.\n"
-        "Return ONLY a JSON array of lore entries.\n"
-        "Each entry must have: title, tag, description, triggers.\n"
-        f"Allowed tags: {sorted(LORE_TAGS)}.\n"
-        f"Do NOT use these existing titles: {existing_titles}\n"
-        f"Target deficits: {deficits}\n"
-        f"World hints: {world_input}\n"
-        "Descriptions: 60–180 words, concrete, vivid, unsettling. Avoid generic fantasy.\n"
-    )
+    """Request additional lore entries based on size tier."""
+    if size_tier in ("tiny", "small"):
+        prompt = (
+            "You are expanding a dark fantasy lore database.\n"
+            "Return ONLY a JSON array. No markdown, no explanations.\n"
+            "Each entry: {title, tag, description, triggers}\n"
+            f"Allowed tags: {sorted(LORE_TAGS)}.\n"
+            f"Existing titles to avoid: {existing_titles}\n"
+            f"Need: {deficits}\n"
+            f"World: {world_input}\n"
+            "Descriptions: 60-180 words, vivid, concrete, unsettling.\n"
+            "CRITICAL: Valid JSON only. No markdown fences.\n"
+        )
+    else:
+        prompt = (
+            f"Expand lore database. Return JSON array of entries.\n"
+            f"Tags: {sorted(LORE_TAGS)}. Avoid: {existing_titles}\n"
+            f"Need: {deficits}. World: {world_input}\n"
+            "60-180 words per description. Vivid, concrete, avoid generic fantasy.\n"
+        )
+
     response = chat_model.invoke([SystemMessage(content=prompt), HumanMessage(content="Generate now.")])
     data = _extract_json(getattr(response, "content", ""))
     if isinstance(data, dict):
@@ -156,6 +217,7 @@ def generate_story_blueprint(
     payload: StoryGenerateRequest,
     logger: LoggerProtocol,
     repair_model: ChatModelProtocol | None = None,
+    model_name: str | None = None,
 ) -> GeneratedStory:
     logger.info("story_generator_start preset=%s name=%s role=%s", payload.ai_instruction_key, payload.name, payload.role)
     role = payload.role.strip()
@@ -167,56 +229,26 @@ def generate_story_blueprint(
     start_template = payload.start_template.strip()
     start_custom = payload.start_custom.strip()
 
-    start_combined = " ".join([part for part in [start_template, start_custom] if part])
-    system_prompt = (
-        "You are a masterful dark fantasy world-builder in the vein of Joe Abercrombie, early GRRM, "
-        "and FromSoftware lore style. Your worlds feel ancient, cruel, morally gray, decaying, and "
-        "steeped in tragic history.\n"
-        "\n"
-        "Core rules — you MUST obey these:\n"
-        "• Return ONLY valid JSON. No explanation, no markdown, no ```json fence.\n"
-        "• Keys: title, description, plot_essentials, author_note, tags (array), lore (array)\n"
-        f"• lore = array of {MIN_TOTAL}–{MAX_TOTAL} objects, each with: \"title\", \"tag\", \"description\", \"triggers\"\n"
-        f"• Allowed tags: {', '.join(sorted(LORE_TAGS))}\n"
-        f"• Minimums: ≥{MIN_PLACES} distinct Places, ≥{MIN_CHARACTERS} named Characters/Player/NPCs with personality/motivation, "
-        f"≥{MIN_FACTIONS} Factions with conflicting agendas\n"
-        "• Every entry must feel alive: use concrete sensory details, hints of dark secrets, betrayals, ancient grudges, "
-        "body horror, religious fanaticism, or ecological decay.\n"
-        "• AVOID: generic fantasy (elves are graceful archers, dwarves love beer & axes, chosen-one farmboy, etc.)\n"
-        "• MAKE IT DISTINCTIVE: twist classic tropes, add moral rot, body-horror undertones, unreliable narrators in descriptions.\n"
-        "• Player entry comes first, tag='Player', title= exactly the provided name, triggers contains the name.\n"
-        "• Descriptions: 60–180 words, vivid, immersive, slightly unsettling.\n"
-        "• Triggers: comma-separated list of 1–6 exact-match phrases players might write.\n"
-        "• CRITICAL: Use CONSISTENT character SPELLINGS. If a character is 'Valerian', do NOT use 'Valerius', 'Valer', "
-        "or other spelling variants. Pick ONE spelling per character and use it everywhere.\n"
-        "• Character titles can vary by context: 'Valerian' (informal), 'Prince Valerian' (formal), "
-        "'Prince Valerian of Aurelien' (full title) are ALL acceptable - the CORE name spelling must stay consistent.\n"
-        "• Think step-by-step about the most interesting conflicts and secrets BEFORE writing JSON. "
-        "Do NOT output your thinking.\n"
-        "\n"
-        "Format example (structure only, do not copy content):\n"
-        "{\n"
-        "  \"title\": \"...\",\n"
-        "  \"description\": \"...\",\n"
-        "  \"plot_essentials\": \"...\",\n"
-        "  \"author_note\": \"...\",\n"
-        "  \"tags\": [\"...\"],\n"
-        "  \"lore\": [\n"
-        "    {\"title\": \"...\", \"tag\": \"Place\", \"description\": \"...\", \"triggers\": \"...\"}\n"
-        "  ]\n"
-        "}\n"
+    # Detect size tier for adaptive prompting
+    size_profile = get_size_profile(model_name)
+    size_tier = size_profile.tier
+    logger.info("story_generator_size_tier=%s model=%s", size_tier, model_name or "unspecified")
+
+    # Build provider-specific prompts using strategy pattern
+    system_prompt, user_prompt = _build_prompts_with_strategy(
+        model_name=model_name,
+        size_profile=size_profile,
+        ai_instruction_key=payload.ai_instruction_key,
+        name=name,
+        role=role,
+        gender=gender,
+        age=age,
+        traits=traits,
+        world_input=world_input,
+        start_template=start_template,
+        start_custom=start_custom,
     )
-    user_prompt = (
-        "Create a complete, self-contained dark fantasy world and story seed around this protagonist:\n\n"
-        f"Name: {name}\n"
-        f"Role/archetype: {role}\n"
-        f"Gender: {gender or 'unspecified'}\n"
-        f"Age: {age or 'unspecified'}\n"
-        f"Core traits: {traits}\n\n"
-        f"World direction / key inspirations: {world_input or 'classic grimdark fantasy with political intrigue and cosmic horror undertones'}\n\n"
-        f"Opening situation: {start_combined or 'The character awakens in a dangerous situation with no clear memory of the previous days.'}\n\n"
-        "Build a rich, dangerous, morally compromised world that feels worth exploring for many hours.\n"
-    )
+
     logger.debug("story_generator_system_prompt=%s", system_prompt)
     logger.debug("story_generator_user_prompt=%s", user_prompt)
     response = chat_model.invoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
@@ -252,6 +284,7 @@ def generate_story_blueprint(
             [entry["title"] for entry in lore_entries],
             payload.ai_instruction_key,
             world_input,
+            size_tier,
         )
         lore_entries.extend(extra)
         lore_entries = _dedupe(lore_entries)

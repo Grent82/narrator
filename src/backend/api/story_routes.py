@@ -51,6 +51,7 @@ from src.backend.infrastructure.models import (
 )
 from src.backend.application.summarizer import resolve_summary_prompt_key
 from src.backend.application.story_generator import GeneratedStory, generate_story_blueprint
+from src.backend.infrastructure.llm_config import active_story_generator_model_name
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -354,11 +355,12 @@ def generate_story(
 ) -> StoryGenerateResponse:
     job_id = str(uuid4())
     _store_job(job_id, "running")
+    model_name = active_story_generator_model_name()
 
     def _run() -> None:
         logger = logging.getLogger("backend")
         try:
-            result = generate_story_blueprint(chat_model, payload, logger, repair_model=repair_model)
+            result = generate_story_blueprint(chat_model, payload, logger, repair_model=repair_model, model_name=model_name)
             _store_job(job_id, "done", result=result)
         except Exception as exc:
             logger.exception("story_generator_failed job_id=%s", job_id)
