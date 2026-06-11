@@ -29,6 +29,8 @@ from src.backend.api.schemas import (
     WorldviewSettingIn,
     WorldviewSettingOut,
 )
+from src.backend.application.worldview.extractor import WorldviewExtractor
+from src.backend.application.worldview.service import WorldviewService
 from src.backend.infrastructure.embeddings import build_lore_text
 from src.backend.infrastructure.db import get_db
 from src.backend.application.vectorstores.lore_vectorstore import LoreVectorStore
@@ -936,3 +938,67 @@ def delete_worldview_setting(story_id: str, setting_id: str, db: Session = Depen
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worldview setting not found")
     db.delete(setting)
     db.commit()
+
+
+@router.post("/{story_id}/worldview/extract", response_model=ExtractionResponse)
+def extract_worldview_settings(
+    story_id: str,
+    payload: ExtractionRequest,
+    db: Session = Depends(get_db),
+) -> ExtractionResponse:
+    """Extract worldview settings from text using LLM.
+
+    This endpoint uses an LLM to analyze the provided text and extract
+    worldview settings like rules, norms, artifacts, and facts.
+    """
+    # Verify story exists
+    story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
+    if not story:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+
+    # Create extractor with LLM
+    from src.backend.infrastructure.langchain_clients import get_story_generator_model
+
+    llm = get_story_generator_model()
+    extractor = WorldviewExtractor(llm)
+    service = WorldviewService(db, extractor)
+
+    # Extract and save
+    result = service.extract_and_save(
+        story_id=story_id,
+        text=payload.text,
+        chunk_size=payload.chunk_size,
+        auto_merge=payload.auto_merge,
+    )
+
+    # Get saved settings
+    settings = service.get_settings(story_id)
+
+    return ExtractionResponse(
+        extracted_count=result["extracted_count"],
+        merged_count=result["merged_count"],
+        settings=[_worldview_to_out(s) for s in settings],
+    )
+
+
+@router.get("/{story_id}/worldview/retrieve")
+def retrieve_worldview_settings(story_id: str, query: str, top_k: int = 5, db: Session = Depends(get_db)):
+    """Retrieve worldview settings relevant to a query.
+
+    Currently returns all settings limited by top_k. Future implementation
+    will use embedding-based retrieval.
+    """
+    # Verify story exists
+    story = db.query(StoryModel).filter(StoryModel.id == story_id).first()
+    if not story:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+
+    service = WorldviewService(db)
+    settings = service.get_relevant_settings(story_id, query, top_k)
+
+    return {
+        "query": query,
+        "top_k": top_k,
+        "count": len(settings),
+        "settings": [_worldview_to_out(s) for s in settings],
+    }
