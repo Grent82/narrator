@@ -88,6 +88,10 @@ class ClaudePromptStrategy(PromptStrategy):
         core_instructions = self._build_core_instructions(context.mode)
         sections.append(core_instructions)
 
+        # Output format - Thought/Speech/Action structure
+        output_format = self._build_output_format_instructions(context.mode)
+        sections.append(output_format)
+
         return "\n\n".join(sections)
 
     def _build_size_guidance(self, context: PromptContext) -> str:
@@ -195,6 +199,54 @@ class ClaudePromptStrategy(PromptStrategy):
 <rule>Keep tone consistent while avoiding repetitive phrasing</rule>
 <rule>Introduce concrete developments: state changes, discoveries, conflicts, decisions</rule>
 </core_rules>"""
+
+    def _build_output_format_instructions(self, mode: str) -> str:
+        """Build output format instructions with Thought/Speech/Action structure."""
+        if mode == "continue":
+            return """<output_format>
+Your response can include three types of content, each serving a different purpose:
+
+1. **Thoughts** `[...]` - Internal thinking, invisible to other characters
+   - Use for: internal reasoning, private reactions, planning
+   - Example: `[He's lying. I can tell by the way he won't meet my eyes.]`
+
+2. **Speech** - Direct dialogue, visible to all characters
+   - Use for: what the character says aloud
+   - Example: `What do you mean you haven't seen him?`
+
+3. **Actions** `(...)` - Physical behaviors, visible to all characters
+   - Use for: gestures, movements, expressions
+   - Example: `(She grips the hilt of her dagger, knuckles whitening.)`
+
+Guidelines:
+- Each type can appear 0 to multiple times per response as appropriate
+- Keep thoughts concise but insightful - reveal subtext and internal conflict
+- Actions should be concrete and specific, not generic
+- Speech should reflect the character's voice and personality
+- Balance all three for emotionally rich, nuanced responses
+</output_format>"""
+        return """<output_format>
+Your response can include three types of content, each serving a different purpose:
+
+1. **Thoughts** `[...]` - Internal thinking, invisible to the player
+   - Use for: internal reasoning, private reactions, moral conflicts
+   - Example: `[Another victim. When will this madness end?]`
+
+2. **Speech** - Direct dialogue, audible to the player
+   - Use for: what the character says aloud
+   - Example: `You shouldn't have come here.`
+
+3. **Actions** `(...)` - Physical behaviors, visible to the player
+   - Use for: gestures, movements, expressions, atmosphere
+   - Example: `(The torchlight flickers across his scarred face.)`
+
+Guidelines:
+- Each type can appear 0 to multiple times per response as appropriate
+- Keep thoughts concise but insightful - reveal character depth and subtext
+- Actions should create atmosphere and show, not tell
+- Speech should be in character and advance the scene
+- Balance all three for immersive, emotionally rich responses
+</output_format>"""
 
     def build_messages(
         self,

@@ -75,9 +75,9 @@ class LlamaPromptStrategy(PromptStrategy):
         task = self._build_task(context.mode)
         sections.append(task)
 
-        # Output format
-        output = self._build_output_format(context.mode)
-        sections.append(output)
+        # Output format - Thought/Speech/Action structure
+        output_format = self._build_output_format_instructions(context.mode)
+        sections.append(output_format)
 
         return "\n\n".join(sections)
 
@@ -243,7 +243,7 @@ You will respond to the player's action as an immersive dark fantasy narrator.
 - Write in third person, past tense"""
 
     def _build_output_format(self, mode: str) -> str:
-        """Build output format section."""
+        """Build output format section - legacy, kept for compatibility."""
         return """## Output Format
 
 - Write only the story response
@@ -251,6 +251,60 @@ You will respond to the player's action as an immersive dark fantasy narrator.
 - No markdown formatting unless part of the narrative
 - No section headers in your output
 - Pure narrative prose only"""
+
+    def _build_output_format_instructions(self, mode: str) -> str:
+        """Build output format instructions with Thought/Speech/Action structure."""
+        if mode == "continue":
+            return """## Output Format - Thought/Speech/Action
+
+Your response can include three types of content, each serving a different purpose:
+
+### 1. Thoughts `[...]`
+Internal thinking, invisible to other characters.
+- Use for: internal reasoning, private reactions, planning
+- Example: `[He's lying. I can tell by the way he won't meet my eyes.]`
+
+### 2. Speech
+Direct dialogue, visible to all characters.
+- Use for: what the character says aloud
+- Example: What do you mean you haven't seen him?
+
+### 3. Actions `(...)`
+Physical behaviors, visible to all characters.
+- Use for: gestures, movements, expressions
+- Example: (She grips the hilt of her dagger, knuckles whitening.)
+
+### Guidelines
+- Each type can appear 0 to multiple times per response as appropriate
+- Keep thoughts concise but insightful - reveal subtext and internal conflict
+- Actions should be concrete and specific, not generic
+- Speech should reflect the character's voice and personality
+- Balance all three for emotionally rich, nuanced responses"""
+        return """## Output Format - Thought/Speech/Action
+
+Your response can include three types of content, each serving a different purpose:
+
+### 1. Thoughts `[...]`
+Internal thinking, invisible to the player.
+- Use for: internal reasoning, private reactions, moral conflicts
+- Example: `[Another victim. When will this madness end?]`
+
+### 2. Speech
+Direct dialogue, audible to the player.
+- Use for: what the character says aloud
+- Example: You shouldn't have come here.
+
+### 3. Actions `(...)`
+Physical behaviors, visible to the player.
+- Use for: gestures, movements, expressions, atmosphere
+- Example: (The torchlight flickers across his scarred face.)
+
+### Guidelines
+- Each type can appear 0 to multiple times per response as appropriate
+- Keep thoughts concise but insightful - reveal character depth and subtext
+- Actions should create atmosphere and show, not tell
+- Speech should be in character and advance the scene
+- Balance all three for immersive, emotionally rich responses"""
 
     def build_messages(
         self,
