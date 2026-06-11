@@ -97,6 +97,32 @@ class WorldviewSettingOut(BaseModel):
     updated_at: str
 
 
+# Location connection schemas (distance network)
+class LocationConnectionIn(BaseModel):
+    from_location_id: str
+    to_location_id: str
+    distance: int = 1
+    travel_time_hours: float | None = None
+    difficulty: str = "normal"  # easy, normal, dangerous, impossible
+
+
+class LocationConnectionOut(BaseModel):
+    id: str
+    story_id: str
+    from_location_id: str
+    to_location_id: str
+    distance: int
+    travel_time_hours: float | None = None
+    difficulty: str
+    created_at: str
+
+
+class LocationConnectionUpdate(BaseModel):
+    distance: int | None = None
+    travel_time_hours: float | None = None
+    difficulty: str | None = None
+
+
 class ExtractionRequest(BaseModel):
     text: str
     chunk_size: int = 500

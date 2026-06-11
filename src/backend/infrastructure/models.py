@@ -181,6 +181,32 @@ class TravelTaskModel(Base):
     story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="travel_tasks")
 
 
+class LocationConnectionModel(Base):
+    """Distance network between locations (BookWorld-inspired)."""
+    __tablename__ = "location_connections"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+    from_location_id: Mapped[str] = mapped_column(ForeignKey("locations.id", ondelete="CASCADE"), nullable=False)
+    to_location_id: Mapped[str] = mapped_column(ForeignKey("locations.id", ondelete="CASCADE"), nullable=False)
+    distance: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    travel_time_hours: Mapped[float | None] = mapped_column(nullable=True)
+    difficulty: Mapped[str] = mapped_column(String(50), nullable=False, server_default="normal")
+    # difficulty: easy, normal, dangerous, impossible
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+
+    story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="location_connections")
+    from_location: Mapped["LocationModel"] = relationship("LocationModel", foreign_keys=[from_location_id])
+    to_location: Mapped["LocationModel"] = relationship("LocationModel", foreign_keys=[to_location_id])
+
+
+# Add relationships to StoryModel
+StoryModel.locations = relationship("LocationModel", back_populates="story", cascade="all, delete-orphan", order_by="LocationModel.name")
+StoryModel.travel_tasks = relationship("TravelTaskModel", back_populates="story", cascade="all, delete-orphan", order_by="TravelTaskModel.started_at")
+StoryModel.location_connections = relationship("LocationConnectionModel", back_populates="story", cascade="all, delete-orphan")
+
+
 # Add relationships to StoryModel
 StoryModel.locations = relationship("LocationModel", back_populates="story", cascade="all, delete-orphan", order_by="LocationModel.name")
 StoryModel.travel_tasks = relationship("TravelTaskModel", back_populates="story", cascade="all, delete-orphan", order_by="TravelTaskModel.started_at")
