@@ -48,6 +48,9 @@ class LlamaPromptStrategy(PromptStrategy):
         if context.lore_block:
             sections.append(f"## KnownLore\n\n{context.lore_block}")
 
+        if context.worldview_block:
+            sections.append(f"## WorldviewSettings\n\n{context.worldview_block}")
+
         if context.author_note:
             sections.append(f"## AuthorNotes\n\n{context.author_note}")
 

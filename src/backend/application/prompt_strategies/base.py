@@ -19,6 +19,7 @@ class PromptContext:
     plot_summary: str | None = None
     plot_essentials: str | None = None
     lore_block: str | None = None
+    worldview_block: str | None = None
     author_note: str | None = None
 
     # Mode and configuration

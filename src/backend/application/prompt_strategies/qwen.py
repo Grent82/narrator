@@ -51,6 +51,10 @@ class QwenPromptStrategy(PromptStrategy):
         if context.lore_block:
             sections.append(f"## Lore\n\n{context.lore_block}")
 
+        # Worldview Settings
+        if context.worldview_block:
+            sections.append(f"## Worldview Settings\n\n{context.worldview_block}")
+
         # Author Note
         if context.author_note:
             sections.append(f"## Author Note\n\n{context.author_note}")

@@ -69,6 +69,41 @@ def _format_lore(entries: Iterable, plot_essentials: str, logger: LoggerProtocol
     return "\n".join(lines)
 
 
+def _format_worldview_settings(settings: Iterable, logger: LoggerProtocol = None) -> str:
+    """Format worldview settings for prompt inclusion.
+
+    Args:
+        settings: Iterable of worldview setting objects/dicts
+        logger: Optional logger
+
+    Returns:
+        Formatted worldview settings block
+    """
+    lines = []
+    for setting in settings:
+        term = _lore_value(setting, "term", logger=logger).strip()
+        nature = _lore_value(setting, "nature", logger=logger).strip()
+        description = _lore_value(setting, "description", logger=logger).strip()
+
+        if not description:
+            continue
+
+        # Format: * term (nature): description
+        if term:
+            lines.append(f"* {term} ({nature}): {description}")
+        else:
+            lines.append(f"* ({nature}): {description}")
+
+        logger and logger.debug(
+            "worldview_setting term=%s nature=%s description=%s",
+            term,
+            nature,
+            description,
+        )
+
+    return "\n".join(lines)
+
+
 def _message_value(msg, key: str, default=None):
     if hasattr(msg, key):
         return getattr(msg, key)
@@ -80,6 +115,7 @@ def _message_value(msg, key: str, default=None):
 def build_system_prompt(
     story: StoryModel,
     lore_entries: Iterable | None = None,
+    worldview_settings: Iterable | None = None,
     mode: str = "story",
     model_profile_id: str | None = None,
     model_name: str | None = None,
@@ -90,6 +126,7 @@ def build_system_prompt(
     Args:
         story: The story model
         lore_entries: Optional lore entries to include
+        worldview_settings: Optional worldview settings to include
         mode: The operation mode (story, continue, say, do)
         model_profile_id: The model class profile ID
         model_name: The model identifier for size-tier detection
@@ -119,6 +156,14 @@ def build_system_prompt(
     ).strip()
     if lore_block:
         sections.append("[LORE]\n" + lore_block)
+
+    # Worldview settings block
+    worldview_block = _format_worldview_settings(
+        worldview_settings if worldview_settings is not None else getattr(story, 'worldview_settings', []),
+        logger=logger,
+    ).strip()
+    if worldview_block:
+        sections.append("[WORLDVIEW SETTINGS]\n" + worldview_block)
 
     author_note = (story.author_note or "").strip()
     if author_note:
@@ -170,6 +215,7 @@ def build_chat_messages(
     user_text: str,
     mode: str = "story",
     lore_entries: Iterable | None = None,
+    worldview_settings: Iterable | None = None,
     recent_pairs: int = 3,
     overlap_pairs: int = 0,
     model_profile_id: str | None = None,
@@ -184,6 +230,7 @@ def build_chat_messages(
         user_text: The user's input text
         mode: The operation mode (story, continue, say, do)
         lore_entries: Optional lore entries to include
+        worldview_settings: Optional worldview settings to include
         recent_pairs: Number of recent message pairs to include
         overlap_pairs: Additional pairs for overlap context
         model_profile_id: The model class profile ID
@@ -200,6 +247,7 @@ def build_chat_messages(
         system_prompt = build_system_prompt(
             story,
             lore_entries=lore_entries,
+            worldview_settings=worldview_settings,
             mode=mode,
             model_profile_id=model_profile_id,
             model_name=model_name,
@@ -269,6 +317,10 @@ def build_chat_messages_with_strategy(
         lore_block=_format_lore(
             lore_entries if lore_entries is not None else (story.lore_entries if story else []),
             story.plot_essentials if story else "",
+            logger=logger,
+        ).strip() if story else None,
+        worldview_block=_format_worldview_settings(
+            worldview_settings if worldview_settings is not None else getattr(story, 'worldview_settings', []) if story else [],
             logger=logger,
         ).strip() if story else None,
         author_note=story.author_note if story else None,

@@ -53,6 +53,12 @@ class ClaudePromptStrategy(PromptStrategy):
         if context.lore_block:
             sections.append(f"<lore>\n{context.lore_block}\n</lore>")
 
+        # Worldview Settings
+        if context.worldview_block:
+            sections.append(
+                f"<worldview_settings>\n{context.worldview_block}\n</worldview_settings>"
+            )
+
         # Author Note
         if context.author_note:
             sections.append(

@@ -69,17 +69,6 @@
         ],
         "matcher": ""
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "command": "bash -c \"./.claude/hooks/on-error/capture-diagnostics.sh 2\u003e/dev/null || true\"",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
     ]
   },
   "model": "qwen-3.5-122b-sovereign",
