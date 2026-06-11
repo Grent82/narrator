@@ -13,6 +13,7 @@ except ImportError:
 from uuid import uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -146,3 +147,63 @@ class LoreSuggestionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
 
     story: Mapped[StoryModel] = relationship("StoryModel", back_populates="lore_suggestions")
+
+
+class LocationModel(Base):
+    __tablename__ = "locations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(length=255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    tag: Mapped[str] = mapped_column(String(length=100), nullable=False, server_default="Location")
+    location_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+
+    story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="locations")
+
+
+class TravelTaskModel(Base):
+    __tablename__ = "travel_tasks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+    character_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    from_location_id: Mapped[str | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), nullable=True)
+    to_location_id: Mapped[str] = mapped_column(ForeignKey("locations.id", ondelete="CASCADE"), nullable=False)
+    distance: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    remaining_turns: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="in_progress")
+
+    story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="travel_tasks")
+
+
+# Add relationships to StoryModel
+StoryModel.locations = relationship("LocationModel", back_populates="story", cascade="all, delete-orphan", order_by="LocationModel.name")
+StoryModel.travel_tasks = relationship("TravelTaskModel", back_populates="story", cascade="all, delete-orphan", order_by="TravelTaskModel.started_at")
+
+# Add location_id to StoryMessageModel
+StoryMessageModel.location_id: Mapped[str | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), nullable=True)
+StoryMessageModel.location = relationship("LocationModel")
+
+
+class WorldviewSettingModel(Base):
+    __tablename__ = "worldview_settings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+    term: Mapped[str] = mapped_column(String(length=255), nullable=False)
+    nature: Mapped[str] = mapped_column(String(length=100), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    source: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+
+    story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="worldview_settings")
+
+
+# Add relationship to StoryModel
+StoryModel.worldview_settings = relationship("WorldviewSettingModel", back_populates="story", cascade="all, delete-orphan", order_by="WorldviewSettingModel.created_at")

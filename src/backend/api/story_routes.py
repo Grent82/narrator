@@ -8,6 +8,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.backend.api.schemas import (
+    ExtractionRequest,
+    ExtractionResponse,
+    LocationIn,
+    LocationOut,
     LoreEntryIn,
     LoreEntryOut,
     LoreSuggestionOut,
@@ -20,6 +24,10 @@ from src.backend.api.schemas import (
     StoryOut,
     StorySummary,
     StoryUpdate,
+    TravelStart,
+    TravelTaskOut,
+    WorldviewSettingIn,
+    WorldviewSettingOut,
 )
 from src.backend.infrastructure.embeddings import build_lore_text
 from src.backend.infrastructure.db import get_db
@@ -32,9 +40,12 @@ from src.backend.infrastructure.langchain_clients import (
 from src.backend.infrastructure.models import (
     LoreEntryModel,
     LoreSuggestionModel,
+    LocationModel,
     StoryMessageModel,
     StoryModel,
     StorySummaryModel,
+    TravelTaskModel,
+    WorldviewSettingModel,
 )
 from src.backend.application.summarizer import resolve_summary_prompt_key
 from src.backend.application.story_generator import GeneratedStory, generate_story_blueprint
@@ -649,4 +660,279 @@ def delete_lore(story_id: str, entry_id: str, db: Session = Depends(get_db)) -> 
     store = LoreVectorStore(get_embedding_model(), story_id, vector_size=int(os.getenv("EMBED_DIM", "768")))
     store.delete_by_lore_id(entry_id)
     db.delete(entry)
+    db.commit()
+
+
+# ============================================================================
+# Location Routes
+# ============================================================================
+
+def _location_to_out(loc: LocationModel) -> LocationOut:
+    return LocationOut(
+        id=loc.id,
+        story_id=loc.story_id,
+        name=loc.name,
+        description=loc.description or "",
+        tag=loc.tag or "Location",
+        metadata=loc.metadata or {},
+        created_at=loc.created_at.isoformat() if loc.created_at else "",
+        updated_at=loc.updated_at.isoformat() if loc.updated_at else "",
+    )
+
+
+@router.get("/{story_id}/locations", response_model=List[LocationOut])
+def list_locations(story_id: str, db: Session = Depends(get_db)) -> List[LocationOut]:
+    locations = db.query(LocationModel).filter(LocationModel.story_id == story_id).order_by(LocationModel.name).all()
+    return [_location_to_out(loc) for loc in locations]
+
+
+@router.post("/{story_id}/locations", response_model=LocationOut, status_code=status.HTTP_201_CREATED)
+def create_location(story_id: str, payload: LocationIn, db: Session = Depends(get_db)) -> LocationOut:
+    # Check if location with same name exists
+    existing = db.query(LocationModel).filter(
+        LocationModel.story_id == story_id,
+        LocationModel.name == payload.name.strip()
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Location with this name already exists")
+
+    location = LocationModel(
+        story_id=story_id,
+        name=payload.name.strip(),
+        description=payload.description.strip(),
+        tag=payload.tag.strip() or "Location",
+        metadata=payload.metadata or {},
+    )
+    db.add(location)
+    db.commit()
+    db.refresh(location)
+    return _location_to_out(location)
+
+
+@router.get("/{story_id}/locations/{location_id}", response_model=LocationOut)
+def get_location(story_id: str, location_id: str, db: Session = Depends(get_db)) -> LocationOut:
+    location = db.query(LocationModel).filter(
+        LocationModel.id == location_id,
+        LocationModel.story_id == story_id
+    ).first()
+    if not location:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+    return _location_to_out(location)
+
+
+@router.put("/{story_id}/locations/{location_id}", response_model=LocationOut)
+def update_location(story_id: str, location_id: str, payload: LocationIn, db: Session = Depends(get_db)) -> LocationOut:
+    location = db.query(LocationModel).filter(
+        LocationModel.id == location_id,
+        LocationModel.story_id == story_id
+    ).first()
+    if not location:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+
+    # Check for name collision
+    existing = db.query(LocationModel).filter(
+        LocationModel.story_id == story_id,
+        LocationModel.name == payload.name.strip(),
+        LocationModel.id != location_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Location with this name already exists")
+
+    location.name = payload.name.strip()
+    location.description = payload.description.strip()
+    location.tag = payload.tag.strip() or "Location"
+    location.metadata = payload.metadata or {}
+    db.commit()
+    db.refresh(location)
+    return _location_to_out(location)
+
+
+@router.delete("/{story_id}/locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_location(story_id: str, location_id: str, db: Session = Depends(get_db)) -> None:
+    location = db.query(LocationModel).filter(
+        LocationModel.id == location_id,
+        LocationModel.story_id == story_id
+    ).first()
+    if not location:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+    db.delete(location)
+    db.commit()
+
+
+# ============================================================================
+# Travel Routes
+# ============================================================================
+
+def _travel_to_out(task: TravelTaskModel) -> TravelTaskOut:
+    return TravelTaskOut(
+        id=task.id,
+        story_id=task.story_id,
+        character_name=task.character_name,
+        from_location_id=task.from_location_id,
+        to_location_id=task.to_location_id,
+        distance=task.distance,
+        remaining_turns=task.remaining_turns,
+        started_at=task.started_at.isoformat() if task.started_at else "",
+        completed_at=task.completed_at.isoformat() if task.completed_at else None,
+        status=task.status,
+    )
+
+
+@router.post("/{story_id}/travel", response_model=TravelTaskOut, status_code=status.HTTP_201_CREATED)
+def start_travel(story_id: str, payload: TravelStart, db: Session = Depends(get_db)) -> TravelTaskOut:
+    # Validate to_location exists
+    to_location = db.query(LocationModel).filter(
+        LocationModel.id == payload.to_location_id,
+        LocationModel.story_id == story_id
+    ).first()
+    if not to_location:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Destination location not found")
+
+    # Validate from_location if provided
+    from_location_id = payload.from_location_id
+    if payload.from_location_id:
+        from_location = db.query(LocationModel).filter(
+            LocationModel.id == payload.from_location_id,
+            LocationModel.story_id == story_id
+        ).first()
+        if not from_location:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="From location not found")
+
+    task = TravelTaskModel(
+        story_id=story_id,
+        character_name=payload.character_name.strip(),
+        from_location_id=from_location_id,
+        to_location_id=payload.to_location_id,
+        distance=payload.distance,
+        remaining_turns=payload.distance,
+        status="in_progress",
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return _travel_to_out(task)
+
+
+@router.get("/{story_id}/travel/active", response_model=List[TravelTaskOut])
+def list_active_travel(story_id: str, db: Session = Depends(get_db)) -> List[TravelTaskOut]:
+    tasks = db.query(TravelTaskModel).filter(
+        TravelTaskModel.story_id == story_id,
+        TravelTaskModel.status == "in_progress"
+    ).order_by(TravelTaskModel.started_at).all()
+    return [_travel_to_out(task) for task in tasks]
+
+
+@router.put("/{story_id}/travel/{task_id}/cancel", response_model=TravelTaskOut)
+def cancel_travel(story_id: str, task_id: str, db: Session = Depends(get_db)) -> TravelTaskOut:
+    task = db.query(TravelTaskModel).filter(
+        TravelTaskModel.id == task_id,
+        TravelTaskModel.story_id == story_id,
+        TravelTaskModel.status == "in_progress"
+    ).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active travel task not found")
+
+    task.status = "cancelled"
+    db.commit()
+    db.refresh(task)
+    return _travel_to_out(task)
+
+
+# ============================================================================
+# Worldview Setting Routes
+# ============================================================================
+
+def _worldview_to_out(setting: WorldviewSettingModel) -> WorldviewSettingOut:
+    return WorldviewSettingOut(
+        id=setting.id,
+        story_id=setting.story_id,
+        term=setting.term,
+        nature=setting.nature,
+        description=setting.description or "",
+        source=setting.source or "",
+        created_at=setting.created_at.isoformat() if setting.created_at else "",
+        updated_at=setting.updated_at.isoformat() if setting.updated_at else "",
+    )
+
+
+@router.get("/{story_id}/worldview/settings", response_model=List[WorldviewSettingOut])
+def list_worldview_settings(story_id: str, db: Session = Depends(get_db)) -> List[WorldviewSettingOut]:
+    settings = db.query(WorldviewSettingModel).filter(
+        WorldviewSettingModel.story_id == story_id
+    ).order_by(WorldviewSettingModel.nature, WorldviewSettingModel.term).all()
+    return [_worldview_to_out(s) for s in settings]
+
+
+@router.post("/{story_id}/worldview/settings", response_model=WorldviewSettingOut, status_code=status.HTTP_201_CREATED)
+def create_worldview_setting(story_id: str, payload: WorldviewSettingIn, db: Session = Depends(get_db)) -> WorldviewSettingOut:
+    # Check for duplicate
+    existing = db.query(WorldviewSettingModel).filter(
+        WorldviewSettingModel.story_id == story_id,
+        WorldviewSettingModel.term == payload.term.strip(),
+        WorldviewSettingModel.nature == payload.nature.strip()
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setting with this term and nature already exists")
+
+    setting = WorldviewSettingModel(
+        story_id=story_id,
+        term=payload.term.strip(),
+        nature=payload.nature.strip(),
+        description=payload.description.strip(),
+        source=payload.source.strip(),
+    )
+    db.add(setting)
+    db.commit()
+    db.refresh(setting)
+    return _worldview_to_out(setting)
+
+
+@router.get("/{story_id}/worldview/settings/{setting_id}", response_model=WorldviewSettingOut)
+def get_worldview_setting(story_id: str, setting_id: str, db: Session = Depends(get_db)) -> WorldviewSettingOut:
+    setting = db.query(WorldviewSettingModel).filter(
+        WorldviewSettingModel.id == setting_id,
+        WorldviewSettingModel.story_id == story_id
+    ).first()
+    if not setting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worldview setting not found")
+    return _worldview_to_out(setting)
+
+
+@router.put("/{story_id}/worldview/settings/{setting_id}", response_model=WorldviewSettingOut)
+def update_worldview_setting(story_id: str, setting_id: str, payload: WorldviewSettingIn, db: Session = Depends(get_db)) -> WorldviewSettingOut:
+    setting = db.query(WorldviewSettingModel).filter(
+        WorldviewSettingModel.id == setting_id,
+        WorldviewSettingModel.story_id == story_id
+    ).first()
+    if not setting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worldview setting not found")
+
+    # Check for duplicate (excluding self)
+    existing = db.query(WorldviewSettingModel).filter(
+        WorldviewSettingModel.story_id == story_id,
+        WorldviewSettingModel.term == payload.term.strip(),
+        WorldviewSettingModel.nature == payload.nature.strip(),
+        WorldviewSettingModel.id != setting_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setting with this term and nature already exists")
+
+    setting.term = payload.term.strip()
+    setting.nature = payload.nature.strip()
+    setting.description = payload.description.strip()
+    setting.source = payload.source.strip()
+    db.commit()
+    db.refresh(setting)
+    return _worldview_to_out(setting)
+
+
+@router.delete("/{story_id}/worldview/settings/{setting_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_worldview_setting(story_id: str, setting_id: str, db: Session = Depends(get_db)) -> None:
+    setting = db.query(WorldviewSettingModel).filter(
+        WorldviewSettingModel.id == setting_id,
+        WorldviewSettingModel.story_id == story_id
+    ).first()
+    if not setting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worldview setting not found")
+    db.delete(setting)
     db.commit()

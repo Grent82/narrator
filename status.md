@@ -18,9 +18,11 @@ AKTUELLER UMFANG (IMPLEMENTIERT, IST-STAND)
 
 3) Datenhaltung
 - PostgreSQL als Primary DB.
-- Tabellen: `stories`, `story_messages`, `story_summaries`, `lore_entries`, `lore_suggestions`.
-- `story_messages` speichert Chat-Verlauf mit `position` fuer stabile Reihenfolge.
+- Tabellen: `stories`, `story_messages`, `story_summaries`, `lore_entries`, `lore_suggestions`, `locations`, `travel_tasks`.
+- `story_messages` speichert Chat-Verlauf mit `position` fuer stabile Reihenfolge und optional `location_id`.
 - `story_summaries` speichert Summary und `last_position` fuer inkrementelle Updates.
+- `locations` speichert Story-Orte mit Geodaten und Metadaten.
+- `travel_tasks` speichert aktive Reisen zwischen Locations (Phase 2).
 
 4) Lore + Vektor-Suche
 - Qdrant als produktiver Vector Store fuer Lore Retrieval.
@@ -65,6 +67,7 @@ P1
 P2
 - Characters / Places / Races als persistente Weltmodelle einfuehren.
 - Quest-System als eigener Fachbereich.
+- Travel-Mechanik mit Turn-basierten Reisen (Phase 2)
 
 P3
 - Bewusste Entscheidung, ob LangChain fuer den schmalen Einsatz noch gerechtfertigt ist.

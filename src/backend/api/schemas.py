@@ -38,6 +38,77 @@ class LoreSuggestionUpdate(BaseModel):
     triggers: str = ""
 
 
+# Location schemas
+class LocationIn(BaseModel):
+    name: str
+    description: str = ""
+    tag: str = "Location"
+    metadata: dict = {}
+
+
+class LocationOut(BaseModel):
+    id: str
+    story_id: str
+    name: str
+    description: str = ""
+    tag: str = "Location"
+    metadata: dict = {}
+    created_at: str
+    updated_at: str
+
+
+# Travel schemas
+class TravelStart(BaseModel):
+    character_name: str
+    from_location_id: str | None = None
+    to_location_id: str
+    distance: int = 1
+
+
+class TravelTaskOut(BaseModel):
+    id: str
+    story_id: str
+    character_name: str
+    from_location_id: str | None = None
+    to_location_id: str
+    distance: int
+    remaining_turns: int
+    started_at: str
+    completed_at: str | None = None
+    status: str
+
+
+# Worldview Setting schemas
+class WorldviewSettingIn(BaseModel):
+    term: str = ""
+    nature: str  # artifact, norm, rule, fact, custom, location_rule, social_custom
+    description: str
+    source: str = ""
+
+
+class WorldviewSettingOut(BaseModel):
+    id: str
+    story_id: str
+    term: str
+    nature: str
+    description: str
+    source: str
+    created_at: str
+    updated_at: str
+
+
+class ExtractionRequest(BaseModel):
+    text: str
+    chunk_size: int = 500
+    auto_merge: bool = True
+
+
+class ExtractionResponse(BaseModel):
+    extracted_count: int
+    merged_count: int
+    settings: list[WorldviewSettingOut] = []
+
+
 class ChatMessage(BaseModel):
     role: str
     text: str = ""
