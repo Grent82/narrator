@@ -235,6 +235,41 @@ class WorldviewSettingModel(Base):
 StoryModel.worldview_settings = relationship("WorldviewSettingModel", back_populates="story", cascade="all, delete-orphan", order_by="WorldviewSettingModel.created_at")
 
 
+class EventModel(Base):
+    """Global events that affect all characters (BookWorld-inspired)."""
+    __tablename__ = "events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_generate_id)
+    story_id: Mapped[str] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    # Event type: global_event, environment_interaction, world_state_change
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False, server_default="global_event")
+
+    # Event data
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    intervention: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+
+    # State tracking
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Optional location scope
+    location_id: Mapped[str | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="events")
+    location: Mapped["LocationModel | None"] = relationship("LocationModel")
+
+
+# Add relationship to StoryModel
+StoryModel.events = relationship("EventModel", back_populates="story", cascade="all, delete-orphan", order_by="-EventModel.priority")
+
+
 class CharacterModel(Base):
     __tablename__ = "characters"
 

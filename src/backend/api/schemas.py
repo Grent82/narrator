@@ -123,6 +123,42 @@ class LocationConnectionUpdate(BaseModel):
     difficulty: str | None = None
 
 
+# Event schemas (Intervention/Event system)
+class EventIn(BaseModel):
+    event_type: str = "global_event"  # global_event, environment_interaction, world_state_change
+    title: str
+    description: str = ""
+    intervention: str = ""
+    is_active: bool = True
+    priority: int = 0
+    location_id: str | None = None
+
+
+class EventOut(BaseModel):
+    id: str
+    story_id: str
+    event_type: str
+    title: str
+    description: str
+    intervention: str
+    is_active: bool
+    priority: int
+    location_id: str | None
+    created_at: str
+    updated_at: str
+    started_at: str | None
+    ended_at: str | None
+
+
+class EventUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    intervention: str | None = None
+    is_active: bool | None = None
+    priority: int | None = None
+    location_id: str | None = None
+
+
 class ExtractionRequest(BaseModel):
     text: str
     chunk_size: int = 500
