@@ -30,6 +30,7 @@ def test_llm_config_supports_openai_compatible_hub(monkeypatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "secret")
     monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "15")
     monkeypatch.setenv("LLM_ENABLE_THINKING", "false")
+    monkeypatch.setenv("LLM_STREAMING", "false")
 
     config = get_chat_model_config()
 
@@ -42,3 +43,4 @@ def test_llm_config_supports_openai_compatible_hub(monkeypatch) -> None:
     assert config.api_key == "secret"
     assert config.timeout == 15
     assert config.enable_thinking is False
+    assert config.streaming is False

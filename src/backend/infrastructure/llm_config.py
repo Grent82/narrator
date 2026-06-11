@@ -17,6 +17,7 @@ class ChatModelConfig:
     api_key: str | None = None
     timeout: float = 30.0
     enable_thinking: bool | None = None
+    streaming: bool = True
 
 
 def _env_first(*keys: str) -> str | None:
@@ -83,6 +84,7 @@ def get_chat_model_config(model: str | None = None) -> ChatModelConfig:
             api_key=_env_first("LLM_API_KEY", "OPENAI_API_KEY", "AI_HUB_API_KEY"),
             timeout=float(_env_first("LLM_TIMEOUT_SECONDS") or "30"),
             enable_thinking=_optional_bool(_env_first("LLM_ENABLE_THINKING")),
+            streaming=_optional_bool(_env_first("LLM_STREAMING")) is not False,
         )
     return ChatModelConfig(
         provider=provider,

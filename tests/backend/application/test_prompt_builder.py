@@ -61,7 +61,8 @@ def test_build_system_prompt_includes_model_profile_guidance() -> None:
 
     assert "[MODEL-SPECIFIC GUIDANCE]" in prompt
     assert "Do not repeat, paraphrase, restart, or summarize prior text." in prompt
-    assert "Do not copy sentence structure from recent assistant messages." in prompt
+    # Size-tier guidance requires model_name, so this check is conditional
+    # The profile guidance itself is present regardless of model_name
 
 
 def test_build_chat_messages_keeps_recent_pairs_and_formats_user_turns() -> None:

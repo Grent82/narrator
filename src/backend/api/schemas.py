@@ -31,6 +31,13 @@ class LoreSuggestionOut(BaseModel):
     created_at: Optional[str] = None
 
 
+class LoreSuggestionUpdate(BaseModel):
+    title: str
+    description: str = ""
+    tag: str
+    triggers: str = ""
+
+
 class ChatMessage(BaseModel):
     role: str
     text: str = ""

@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from src.backend.api.schemas import (
     LoreEntryIn,
     LoreEntryOut,
+    LoreSuggestionOut,
+    LoreSuggestionUpdate,
     StoryGenerateJobResponse,
     StoryGenerateJobStatus,
     StoryGenerateRequest,
@@ -36,12 +38,12 @@ from src.backend.infrastructure.models import (
 )
 from src.backend.application.summarizer import resolve_summary_prompt_key
 from src.backend.application.story_generator import GeneratedStory, generate_story_blueprint
-from src.backend.infrastructure.langchain_clients import get_chat_model
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
 _generator_jobs: dict[str, dict] = {}
 _TRANSIENT_ASSISTANT_PREFIXES = (
+    "[LLM error:",
     "[Ollama error:",
     "[Ollama warning:",
     "Backend error:",
@@ -447,6 +449,44 @@ def accept_lore_suggestion(
         )
         _queue_vector(background_tasks, entry_to_upsert.id, story_id, text, _lore_metadata(entry_to_upsert))
     return None
+
+
+@router.put("/{story_id}/lore/review/{suggestion_id}", response_model=LoreSuggestionOut)
+def update_lore_suggestion(
+    story_id: str,
+    suggestion_id: str,
+    payload: LoreSuggestionUpdate,
+    db: Session = Depends(get_db),
+) -> LoreSuggestionOut:
+    suggestion = (
+        db.query(LoreSuggestionModel)
+        .filter(
+            LoreSuggestionModel.id == suggestion_id,
+            LoreSuggestionModel.story_id == story_id,
+            LoreSuggestionModel.status == "pending",
+        )
+        .first()
+    )
+    if not suggestion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
+
+    suggestion.title = payload.title.strip()
+    suggestion.description = payload.description.strip()
+    suggestion.tag = payload.tag.strip()
+    suggestion.triggers = payload.triggers.strip()
+    db.commit()
+    db.refresh(suggestion)
+    return LoreSuggestionOut(
+        id=suggestion.id,
+        kind=suggestion.kind,
+        status=suggestion.status,
+        title=suggestion.title,
+        tag=suggestion.tag,
+        description=suggestion.description or "",
+        triggers=suggestion.triggers or "",
+        target_lore_id=suggestion.target_lore_id,
+        created_at=suggestion.created_at.isoformat() if suggestion.created_at else None,
+    )
 
 
 @router.post("/{story_id}/lore/review/{suggestion_id}/reject", status_code=status.HTTP_204_NO_CONTENT)

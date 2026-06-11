@@ -67,8 +67,7 @@ P2
 - Quest-System als eigener Fachbereich.
 
 P3
-- Bewusste Entscheidung, ob Redis/Jobs/Eventing ueberhaupt gebraucht werden.
-- Spaetere Bewertung, ob LangChain fuer den schmalen Einsatz noch gerechtfertigt ist.
+- Bewusste Entscheidung, ob LangChain fuer den schmalen Einsatz noch gerechtfertigt ist.
 
 ================================================================
 DEPENDENCIES

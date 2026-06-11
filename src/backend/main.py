@@ -22,7 +22,6 @@ from src.shared.logging_config import configure_logging
 
 app = FastAPI()
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "17000"))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
@@ -89,7 +88,6 @@ def _to_turn_payload(payload: TurnRequest) -> TurnPayload:
 def healthcheck():
     return {
         "status": "ok",
-        "redis_url": REDIS_URL,
         "ollama_url": OLLAMA_URL,
         "ollama_model": OLLAMA_MODEL,
         "llm_provider": active_provider_name(),

@@ -56,3 +56,14 @@ def test_openai_compatible_bind_and_model_copy_are_immutable() -> None:
     assert bound.options == {"temperature": 0.7}
     assert copied.model == "anthropic/claude-sonnet"
     assert copied.options == {"temperature": 0.7}
+
+
+def test_openai_compatible_model_copy_preserves_streaming_flag() -> None:
+    client = OpenAICompatibleChatModel(
+        base_url="https://hub.example/v1",
+        model="qwen/qwen3",
+        streaming=False,
+    )
+    copied = client.model_copy({"model": "other"})
+
+    assert copied.streaming is False

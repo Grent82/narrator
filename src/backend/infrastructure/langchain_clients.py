@@ -25,6 +25,7 @@ def _build_chat_model(model: str | None = None, **options) -> ChatModelProtocol:
             model=config.model,
             api_key=config.api_key,
             timeout=config.timeout,
+            streaming=config.streaming,
         )
         return client.bind(**options) if options else client
     return ChatOllama(

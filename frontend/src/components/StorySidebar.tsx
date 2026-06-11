@@ -6,14 +6,17 @@ type StorySidebarProps = {
   story: Story;
   open: boolean;
   onClose: () => void;
+  onRefresh: () => Promise<void>;
+  isRefreshing: boolean;
   onSavePlot: (fields: { plot_essentials: string; author_note: string }) => Promise<void>;
   onSaveDetails: (fields: { title: string; description: string; tags: string[] }) => Promise<void>;
   onAddLore: (entry: Omit<LoreEntry, "id"> & { id?: string }) => Promise<void>;
   onUpdateLore: (entry: LoreEntry) => Promise<void>;
   onDeleteLore: (entryId: string) => Promise<void>;
   onDuplicateLore: (entry: LoreEntry) => Promise<void>;
-  onAcceptSuggestion: (suggestionId: string) => void;
-  onRejectSuggestion: (suggestionId: string) => void;
+  onUpdateSuggestion: (suggestion: LoreSuggestion) => Promise<void>;
+  onAcceptSuggestion: (suggestionId: string) => Promise<void>;
+  onRejectSuggestion: (suggestionId: string) => Promise<void>;
 };
 
 type SidebarTab = "story" | "lore" | "details";
@@ -141,12 +144,14 @@ function LoreDialog({
 
 function SuggestionList({
   suggestions,
+  onEditSuggestion,
   onAcceptSuggestion,
   onRejectSuggestion,
 }: {
   suggestions: LoreSuggestion[];
-  onAcceptSuggestion: (suggestionId: string) => void;
-  onRejectSuggestion: (suggestionId: string) => void;
+  onEditSuggestion: (suggestion: LoreSuggestion) => void;
+  onAcceptSuggestion: (suggestionId: string) => Promise<void>;
+  onRejectSuggestion: (suggestionId: string) => Promise<void>;
 }) {
   if (suggestions.length === 0) {
     return <p className="muted">No pending review items.</p>;
@@ -162,11 +167,15 @@ function SuggestionList({
           </div>
           <p>{item.description || "No description."}</p>
           <p className="muted">Tag: {item.tag}</p>
+          {item.triggers ? <p className="muted">Triggers: {item.triggers}</p> : null}
           <div className="button-row">
-            <button className="button button--primary" onClick={() => onAcceptSuggestion(item.id)}>
+            <button className="button button--ghost" onClick={() => onEditSuggestion(item)}>
+              Edit
+            </button>
+            <button className="button button--primary" onClick={() => void onAcceptSuggestion(item.id)}>
               Accept
             </button>
-            <button className="button button--ghost" onClick={() => onRejectSuggestion(item.id)}>
+            <button className="button button--ghost" onClick={() => void onRejectSuggestion(item.id)}>
               Reject
             </button>
           </div>
@@ -180,12 +189,15 @@ export function StorySidebar({
   story,
   open,
   onClose,
+  onRefresh,
+  isRefreshing,
   onSavePlot,
   onSaveDetails,
   onAddLore,
   onUpdateLore,
   onDeleteLore,
   onDuplicateLore,
+  onUpdateSuggestion,
   onAcceptSuggestion,
   onRejectSuggestion,
 }: StorySidebarProps) {
@@ -196,7 +208,9 @@ export function StorySidebar({
   const [description, setDescription] = useState(story.description);
   const [tags, setTags] = useState(story.tags.join(", "));
   const [editingLore, setEditingLore] = useState<LoreDraft | null>(null);
+  const [editingSuggestion, setEditingSuggestion] = useState<LoreSuggestion | null>(null);
   const [isLoreDialogOpen, setIsLoreDialogOpen] = useState(false);
+  const [isSuggestionDialogOpen, setIsSuggestionDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -339,9 +353,16 @@ export function StorySidebar({
                     <p className="eyebrow">Review</p>
                     <h3>Pending suggestions</h3>
                   </div>
+                  <button className="button button--ghost" disabled={isRefreshing} onClick={() => void onRefresh()}>
+                    {isRefreshing ? "Refreshing..." : "Refresh"}
+                  </button>
                 </div>
                 <SuggestionList
                   suggestions={story.lore_review}
+                  onEditSuggestion={(suggestion) => {
+                    setEditingSuggestion(suggestion);
+                    setIsSuggestionDialogOpen(true);
+                  }}
                   onAcceptSuggestion={onAcceptSuggestion}
                   onRejectSuggestion={onRejectSuggestion}
                 />
@@ -406,6 +427,28 @@ export function StorySidebar({
             return;
           }
           await onAddLore(entry);
+        }}
+      />
+
+      <LoreDialog
+        open={isSuggestionDialogOpen}
+        title={editingSuggestion?.title || "Review suggestion"}
+        entry={editingSuggestion || emptyLore()}
+        onClose={() => {
+          setIsSuggestionDialogOpen(false);
+          setEditingSuggestion(null);
+        }}
+        onSave={async (entry) => {
+          if (!editingSuggestion) {
+            return;
+          }
+          await onUpdateSuggestion({
+            ...editingSuggestion,
+            title: entry.title,
+            description: entry.description,
+            tag: entry.tag,
+            triggers: entry.triggers,
+          });
         }}
       />
     </>

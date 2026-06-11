@@ -2,6 +2,7 @@ import { buildUrl, requestJson } from "./client";
 import type {
   ChatMessage,
   LoreEntry,
+  LoreSuggestion,
   Story,
   StoryDraftPayload,
   StoryGenerateJobResponse,
@@ -62,6 +63,17 @@ export function syncStoryLore(storyId: string) {
 export function acceptLoreSuggestion(storyId: string, suggestionId: string) {
   return requestJson<void>(`/stories/${storyId}/lore/review/${suggestionId}/accept`, {
     method: "POST",
+  });
+}
+
+export function updateLoreSuggestion(
+  storyId: string,
+  suggestionId: string,
+  payload: Pick<LoreSuggestion, "title" | "description" | "tag" | "triggers">,
+) {
+  return requestJson<LoreSuggestion>(`/stories/${storyId}/lore/review/${suggestionId}`, {
+    method: "PUT",
+    body: payload,
   });
 }
 

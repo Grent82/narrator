@@ -9,6 +9,7 @@ import {
   syncStoryLore,
   streamTurn,
   updateLoreEntry,
+  updateLoreSuggestion,
   updateStory,
 } from "../api/stories";
 import type { ChatMessage, Story } from "../api/types";
@@ -29,6 +30,7 @@ function sanitizeMessagesForPersistence(messages: ChatMessage[]) {
 
     const text = message.text.trim();
     return !(
+      text.startsWith("[LLM error:") ||
       text.startsWith("[Ollama error:") ||
       text.startsWith("[Ollama warning:") ||
       text.startsWith("Backend error:") ||
@@ -45,6 +47,8 @@ export function StoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isRefreshingPanel, setIsRefreshingPanel] = useState(false);
+  const isRefreshingPanelRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [command, setCommand] = useState("");
   const [mode, setMode] = useState<TurnMode>("story");
@@ -90,6 +94,44 @@ export function StoryPage() {
     void loadStory();
   }, [storyId]);
 
+  const refreshStorySnapshot = async () => {
+    if (!storyId) {
+      return;
+    }
+    const loadedStory = await getStory(storyId);
+    setStory(loadedStory);
+    storyRef.current = loadedStory;
+  };
+
+  const refreshPanel = async () => {
+    if (isRefreshingPanelRef.current) {
+      return;
+    }
+    isRefreshingPanelRef.current = true;
+    setIsRefreshingPanel(true);
+    try {
+      await refreshStorySnapshot();
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : "Unable to refresh story panel.");
+    } finally {
+      isRefreshingPanelRef.current = false;
+      setIsRefreshingPanel(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isPanelOpen || !storyId) {
+      return undefined;
+    }
+
+    void refreshPanel();
+    const intervalId = window.setInterval(() => {
+      void refreshPanel();
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isPanelOpen, storyId]);
+
   const persistMessages = async (messages: ChatMessage[]) => {
     if (!storyId) {
       return;
@@ -128,6 +170,16 @@ export function StoryPage() {
         }));
       });
       await persistMessages(messages);
+      window.setTimeout(() => {
+        if (storyRef.current?.id === storyId) {
+          void refreshPanel();
+        }
+      }, 2500);
+      window.setTimeout(() => {
+        if (storyRef.current?.id === storyId) {
+          void refreshPanel();
+        }
+      }, 9000);
     } catch (streamError) {
       const message = streamError instanceof Error ? streamError.message : "Turn failed.";
       messages = messages.map((entry, index) =>
@@ -222,7 +274,7 @@ export function StoryPage() {
   const refreshStory = async (action: () => Promise<void>) => {
     try {
       await action();
-      await loadStory();
+      await refreshStorySnapshot();
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed.");
     }
@@ -344,6 +396,8 @@ export function StoryPage() {
         open={isPanelOpen}
         story={story}
         onClose={() => setIsPanelOpen(false)}
+        onRefresh={refreshPanel}
+        isRefreshing={isRefreshingPanel}
         onSavePlot={(fields) => refreshStory(async () => {
           await updateStory(story.id, fields);
         })}
@@ -367,8 +421,18 @@ export function StoryPage() {
             });
           })
         }
-        onAcceptSuggestion={(suggestionId) => void refreshStory(() => acceptLoreSuggestion(story.id, suggestionId))}
-        onRejectSuggestion={(suggestionId) => void refreshStory(() => rejectLoreSuggestion(story.id, suggestionId))}
+        onUpdateSuggestion={(suggestion) =>
+          refreshStory(async () => {
+            await updateLoreSuggestion(story.id, suggestion.id, {
+              title: suggestion.title,
+              description: suggestion.description,
+              tag: suggestion.tag,
+              triggers: suggestion.triggers,
+            });
+          })
+        }
+        onAcceptSuggestion={(suggestionId) => refreshStory(() => acceptLoreSuggestion(story.id, suggestionId))}
+        onRejectSuggestion={(suggestionId) => refreshStory(() => rejectLoreSuggestion(story.id, suggestionId))}
       />
     </main>
   );

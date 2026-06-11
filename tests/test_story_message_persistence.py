@@ -5,6 +5,7 @@ def test_transient_assistant_errors_are_not_persisted() -> None:
     messages = [
         {"role": "user", "text": "continue"},
         {"role": "assistant", "text": "Normal reply"},
+        {"role": "assistant", "text": "\n[LLM error: read timeout]"},
         {"role": "assistant", "text": "\n[Ollama error: model requires more memory]"},
         {"role": "assistant", "text": "Backend error: request failed"},
         {"role": "assistant", "text": "Unexpected error: timeout"},

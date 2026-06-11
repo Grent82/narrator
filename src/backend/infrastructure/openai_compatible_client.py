@@ -16,6 +16,7 @@ class OpenAICompatibleChatModel:
     model: str
     api_key: str | None = None
     timeout: float = 120.0
+    streaming: bool = True
     options: dict[str, Any] = field(default_factory=dict)
 
     def bind(self, **kwargs: Any) -> OpenAICompatibleChatModel:
@@ -29,10 +30,14 @@ class OpenAICompatibleChatModel:
             model=update.get("model", self.model),
             api_key=update.get("api_key", self.api_key),
             timeout=update.get("timeout", self.timeout),
+            streaming=update.get("streaming", self.streaming),
             options=update.get("options", self.options),
         )
 
     def stream(self, input: Iterable[BaseMessage]) -> Iterator[AIMessage]:
+        if not self.streaming:
+            yield self.invoke(input)
+            return
         payload = self._payload(input, stream=True)
         with httpx.Client(timeout=self.timeout) as client:
             with client.stream(
