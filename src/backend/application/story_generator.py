@@ -124,6 +124,66 @@ def _dedupe(entries: list[dict]) -> list[dict]:
     return result
 
 
+def _validate_name_consistency(entries: list[dict], logger: LoggerProtocol) -> list[str]:
+    """Validate that character names are consistent across all lore entries.
+
+    Args:
+        entries: List of lore entries
+        logger: Logger for warnings
+
+    Returns:
+        List of warning messages for inconsistent names
+    """
+    # Extract all character names
+    character_names: dict[str, list[str]] = {}  # normalized -> list of original names
+    warnings: list[str] = []
+
+    for entry in entries:
+        if entry.get("tag") not in {"Character", "Player"}:
+            continue
+        title = entry.get("title", "").strip()
+        if not title:
+            continue
+
+        # Normalize: extract core name (remove prefixes like "Prince ", "Lord ")
+        normalized = title.lower()
+        for prefix in ["prince ", "queen ", "king ", "lord ", "lady ", "the "]:
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):]
+                break
+        for suffix in [" of valdor", " of aurelien", " (the crow)", " (silver tongue)"]:
+            if normalized.endswith(suffix):
+                normalized = normalized[:-len(suffix)]
+                break
+
+        # Track variations
+        if normalized not in character_names:
+            character_names[normalized] = []
+        if title not in character_names[normalized]:
+            character_names[normalized].append(title)
+
+    # Check for similar names that might be inconsistencies
+    # Simple heuristic: names sharing >70% of characters
+    normalized_list = list(character_names.keys())
+    for i, name1 in enumerate(normalized_list):
+        for name2 in normalized_list[i+1:]:
+            # Check if names are similar (share significant overlap)
+            if len(name1) >= 4 and len(name2) >= 4:
+                # Check for substring overlap
+                if name1 in name2 or name2 in name1:
+                    continue  # One is substring of other - likely intentional
+                # Check for similar length and shared characters
+                if abs(len(name1) - len(name2)) <= 2:
+                    shared = sum(1 for c in name1 if c in name2) / max(len(name1), len(name2))
+                    if shared > 0.7:
+                        all_variations = character_names[name1] + character_names[name2]
+                        warning = f"POTENTIAL_NAME_INCONSISTENCY: Similar names detected: {all_variations}"
+                        warnings.append(warning)
+                        logger.warning(warning)
+
+    return warnings
+
+
 def _request_more_lore(
     chat_model: ChatModelProtocol,
     logger: LoggerProtocol,
@@ -187,6 +247,8 @@ def generate_story_blueprint(
         "• Player entry comes first, tag='Player', title= exactly the provided name, triggers contains the name.\n"
         "• Descriptions: 60–180 words, vivid, immersive, slightly unsettling.\n"
         "• Triggers: comma-separated list of 1–6 exact-match phrases players might write.\n"
+        "• CRITICAL: Use CONSISTENT character names throughout. If a character is named 'Valerian' in one entry, "
+        "do NOT use 'Valerius', 'Valer', or any variant in another entry. Pick ONE spelling and stick with it.\n"
         "• Think step-by-step about the most interesting conflicts and secrets BEFORE writing JSON. "
         "Do NOT output your thinking.\n"
         "\n"
@@ -264,6 +326,12 @@ def generate_story_blueprint(
         plot_essentials = essentials
 
     total, places, chars, factions = _count_lore(lore_entries)
+
+    # Validate name consistency
+    name_warnings = _validate_name_consistency(lore_entries, logger)
+    if name_warnings:
+        logger.warning("story_generator_name_warnings count=%d", len(name_warnings))
+
     logger.info(
         "story_generator_done title=%s lore_total=%d places=%d characters=%d factions=%d",
         title,
