@@ -1,53 +1,90 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
+  },
   "env": {
+    "ANTHROPIC_API_KEY": "sk-K5FI1yOMuxd8-0oWZitQrg",
+    "ANTHROPIC_BASE_URL": "https://adesso-ai-hub.3asabc.de",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
     "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
     "OTEL_METRICS_EXPORTER": "otlp"
   },
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ./.claude/hooks/pre-command/check-sensitive-path.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ./.claude/hooks/pre-command/check-sensitive-path.sh"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
         "hooks": [
           {
-            "type": "command",
-            "command": "bash -c \"./.claude/hooks/post-command/validate-python.sh 2>/dev/null || true\""
+            "command": "bash -c \"./.claude/hooks/post-command/validate-python.sh 2\u003e/dev/null || true\"",
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": "Edit|Write"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "bash ./.claude/hooks/pre-command/check-sensitive-path.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash ./.claude/hooks/pre-command/check-sensitive-path.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
       }
     ],
     "Stop": [
       {
-        "matcher": "",
         "hooks": [
           {
-            "type": "command",
-            "command": "bash -c \"./.claude/hooks/on-error/capture-diagnostics.sh 2>/dev/null || true\""
+            "command": "bash -c \"./.claude/hooks/on-error/capture-diagnostics.sh 2\u003e/dev/null || true\"",
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": ""
       }
     ]
   },
+  "model": "qwen-3.5-122b-sovereign",
   "permissions": {
     "allow": [
       "Bash(python:*)",
@@ -73,8 +110,7 @@
     "deny": []
   },
   "statusLine": {
-    "type": "command",
-    "command": "/bin/bash ./.claude/hooks/agent-statusline.sh"
-  },
-  "enabledPlugins": {}
+    "command": "/bin/bash ./.claude/hooks/agent-statusline.sh",
+    "type": "command"
+  }
 }

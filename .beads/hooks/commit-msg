@@ -1,0 +1,3 @@
+#!/bin/sh
+# Removes the "Co-authored-by: Copilot" trailer added by GitHub Copilot CLI.
+perl -i -0pe 's/^Co-authored-by:[ \t]+Copilot[ \t]+<[^\n>]+>\r?\n//mg' "$1"
