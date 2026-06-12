@@ -419,6 +419,9 @@ def accept_lore_suggestion(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
 
     entry_to_upsert = None
+    location_to_upsert = None
+    is_new_location = False
+
     if suggestion.kind == "UPDATE" and suggestion.target_lore_id:
         target = (
             db.query(LoreEntryModel)
@@ -451,6 +454,25 @@ def accept_lore_suggestion(
         )
         story.lore_entries.append(entry)
         entry_to_upsert = entry
+        is_new_location = (suggestion.tag or "").lower() == "location"
+
+    # Create Location entry if this is a Location tag
+    if is_new_location:
+        existing_location = db.query(LocationModel).filter(
+            LocationModel.story_id == story_id,
+            LocationModel.name == suggestion.title.strip()
+        ).first()
+        if not existing_location:
+            location = LocationModel(
+                story_id=story_id,
+                name=suggestion.title.strip(),
+                description=suggestion.description or "",
+                tag="Location",
+                metadata={"source": "lore_suggestion", "suggestion_id": suggestion_id},
+            )
+            db.add(location)
+            location_to_upsert = location
+
     suggestion.status = "accepted"
     db.commit()
     db.refresh(story)
