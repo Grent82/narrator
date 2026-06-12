@@ -158,10 +158,17 @@ class LocationModel(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     tag: Mapped[str] = mapped_column(String(length=100), nullable=False, server_default="Location")
     location_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default="{}")
+    parent_location_id: Mapped[str | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC))
 
     story: Mapped["StoryModel"] = relationship("StoryModel", back_populates="locations")
+    parent_location: Mapped["LocationModel | None"] = relationship(
+        "LocationModel",
+        remote_side=[id],
+        foreign_keys=[parent_location_id],
+        backref="child_locations",
+    )
 
 
 class TravelTaskModel(Base):

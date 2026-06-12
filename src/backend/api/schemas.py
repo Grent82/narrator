@@ -44,6 +44,7 @@ class LocationIn(BaseModel):
     description: str = ""
     tag: str = "Location"
     metadata: dict = {}
+    parent_location_id: str | None = None
 
 
 class LocationOut(BaseModel):
@@ -53,6 +54,7 @@ class LocationOut(BaseModel):
     description: str = ""
     tag: str = "Location"
     metadata: dict = {}
+    parent_location_id: str | None = None
     created_at: str
     updated_at: str
 

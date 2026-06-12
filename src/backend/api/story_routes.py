@@ -702,6 +702,7 @@ def _location_to_out(loc: LocationModel) -> LocationOut:
         description=loc.description or "",
         tag=loc.tag or "Location",
         metadata=loc.metadata or {},
+        parent_location_id=loc.parent_location_id,
         created_at=loc.created_at.isoformat() if loc.created_at else "",
         updated_at=loc.updated_at.isoformat() if loc.updated_at else "",
     )
@@ -723,12 +724,23 @@ def create_location(story_id: str, payload: LocationIn, db: Session = Depends(ge
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Location with this name already exists")
 
+    # Validate parent_location_id if provided
+    parent_location_id = payload.parent_location_id
+    if parent_location_id:
+        parent = db.query(LocationModel).filter(
+            LocationModel.id == parent_location_id,
+            LocationModel.story_id == story_id
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent location not found")
+
     location = LocationModel(
         story_id=story_id,
         name=payload.name.strip(),
         description=payload.description.strip(),
         tag=payload.tag.strip() or "Location",
         metadata=payload.metadata or {},
+        parent_location_id=parent_location_id,
     )
     db.add(location)
     db.commit()
@@ -765,10 +777,21 @@ def update_location(story_id: str, location_id: str, payload: LocationIn, db: Se
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Location with this name already exists")
 
+    # Validate parent_location_id if provided
+    parent_location_id = payload.parent_location_id
+    if parent_location_id:
+        parent = db.query(LocationModel).filter(
+            LocationModel.id == parent_location_id,
+            LocationModel.story_id == story_id
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent location not found")
+
     location.name = payload.name.strip()
     location.description = payload.description.strip()
     location.tag = payload.tag.strip() or "Location"
     location.metadata = payload.metadata or {}
+    location.parent_location_id = parent_location_id
     db.commit()
     db.refresh(location)
     return _location_to_out(location)
