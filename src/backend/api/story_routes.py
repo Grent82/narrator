@@ -474,6 +474,7 @@ def accept_lore_suggestion(
             location_to_upsert = location
 
     suggestion.status = "accepted"
+    db.delete(suggestion)
     db.commit()
     db.refresh(story)
 
@@ -543,7 +544,7 @@ def reject_lore_suggestion(
     )
     if not suggestion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
-    suggestion.status = "rejected"
+    db.delete(suggestion)
     db.commit()
     return None
 
